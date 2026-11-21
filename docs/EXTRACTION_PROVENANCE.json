@@ -1,0 +1,43 @@
+{
+  "extracted_on": "2026-11-14",
+  "source_project": "video-production-system",
+  "note": "Hashes describe extraction baseline, not current modified files. Upstream license review remains pending. Original media-service provenance is in model_gateway/SOURCE_SNAPSHOT.json.",
+  "files": [
+    {
+      "source": "services/media_service/app.py",
+      "sha256": "ab95bfedd06d2e43b2b15df49ef55d779f65b1976267b93710f88ce206706c5c"
+    },
+    {
+      "source": "services/media_service/runner.py",
+      "sha256": "c4ba05ce34a927fae0750aa213990bba28e585c39e97060077e6503ff6ae5aed"
+    },
+    {
+      "source": "services/media_service/studio.html",
+      "sha256": "6ce376304ec6a11433c4feadd7feccccbaf35330e3c2768cada60dcdec3c603d"
+    },
+    {
+      "source": "services/media_service/studio.js",
+      "sha256": "603d89ff9edbecc9322d9a2a93bba95cbaa6d43c78a7e8dc183c576f60eb9b63"
+    },
+    {
+      "source": "services/media_service/studio.css",
+      "sha256": "62fd1ea61d62abdf8cab7661165bbcf173a4b16710f8fc1856849e5a0792a468"
+    },
+    {
+      "source": "services/media_service/moss_edit.py",
+      "sha256": "eaf74a5de843189d5e93e03b455d1c5ea0eed503b1083eb648fa811da1b9d31d"
+    },
+    {
+      "source": "services/media_service/h3_image_decode.py",
+      "sha256": "cd3d8a6f2cb23b46815fdcd6e35068ce1cb3ee51950ef9ef46f5f13da5b979b7"
+    },
+    {
+      "source": "services/media_service/h3edit_encode.py",
+      "sha256": "59a3ea68c706e93093977c3465d5f2cd3226df03d64f0c761c101696b6a74470"
+    },
+    {
+      "source": "src/vprod/huobao_compat.py",
+      "sha256": "b944d588d40c6dc73b1c90759fdfae7d2e0fcc79d0bcd3f7b9c078a8d1b1183c"
+    }
+  ]
+}

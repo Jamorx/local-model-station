@@ -1,0 +1,196 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>本地媒体实验室 · 任务管理</title>
+<link rel="stylesheet" href="/static.css">
+<body>
+<header>
+ <small>LOCAL MEDIA LAB · 离线模型 · 内存等待队列</small>
+ <h1>本地图片 / 视频生成</h1>
+ <nav>
+  <a href="/">新任务</a><a href="/manage" class="active">任务管理</a>
+  <span class="hl"><a href="/api/help">API 文档</a><a href="/api/help">实测报告</a></span>
+ </nav>
+</header>
+
+<div id="keybar">
+ <span class="klabel">API 密钥（沿用 oMLX）</span>
+ <input id="key" type="password" autocomplete="off" placeholder="输入现有 oMLX 密钥">
+ <label class="remember"><input id="remember" type="checkbox">此设备记住</label>
+ <span id="conn" class="dot off"></span><span id="conn-text">未连接</span>
+</div>
+
+<div id="statusbar">
+ <div class="mem">
+  <div class="mem-label">可用内存 <b id="avail">–</b> GiB（整机 96 GiB）</div>
+  <div class="mem-bar"><div id="mem-fill"></div></div>
+ </div>
+ <div id="model-chips"></div>
+ <div class="sb-right"><span id="active-job">空闲</span> · <span id="queue-count">队列 0</span> · <span id="wait-timeout"></span></div>
+</div>
+
+<main>
+<section>
+ <h2>任务管理 <span id="upd" class="muted"></span></h2>
+ <div class="filters" id="filters">
+  <button type="button" class="tab active" data-f="all">全部</button>
+  <button type="button" class="tab" data-f="running">进行中</button>
+  <button type="button" class="tab" data-f="queued">排队等待</button>
+  <button type="button" class="tab" data-f="succeeded">已完成</button>
+  <button type="button" class="tab" data-f="failed">失败</button>
+ </div>
+ <div id="list"></div>
+ <div id="more-wrap" style="margin-top:12px"></div>
+</section>
+</main>
+
+<div id="logmask" class="mask" hidden>
+ <div class="modal">
+  <div class="mhead"><b>任务日志</b><span id="log-title" class="muted"></span><button class="x" id="log-close" type="button">×</button></div>
+  <div class="mopts">
+   <label class="inline"><input type="checkbox" id="log-auto" checked>运行中自动刷新</label>
+   <label class="inline"><input type="checkbox" id="log-follow" checked>跟随底部</label>
+  </div>
+  <pre id="logbody">加载日志…</pre>
+ </div>
+</div>
+
+<div id="detmask" class="mask" hidden>
+ <div class="modal">
+  <div class="mhead"><b>任务详情</b><span id="det-title" class="muted"></span><button class="x" id="det-close" type="button">×</button></div>
+  <div id="detbody"></div>
+ </div>
+</div>
+
+<div id="toasts"></div>
+
+<script src="/static.js"></script>
+<script>
+let filter='all',shown=40;
+const prevMap=new Map();
+
+function match(j){
+ if(filter==='all')return true;
+ if(filter==='failed')return j.status==='failed'||j.status==='cancelled'||j.status==='interrupted';
+ return j.status===filter;
+}
+function rowCard(j){
+ const el=document.createElement('div');el.className='mrow';el.dataset.id=j.id;
+ if(j.status==='running')el.dataset.started=j.started_at||'';
+ /* 缩略图 */
+ const th=document.createElement('div');th.className='thumb';
+ if(j.status==='succeeded'){
+  th.classList.add('clickable');th.title='点击大图展示 / 播放';th.onclick=()=>openLightbox(j);
+  if(j.parameters.kind==='image'){
+   thumbURL(j).then(u=>{if(u){const img=document.createElement('img');img.src=u;img.alt='产物缩略图';th.append(img)}});
+  }else{
+   const v=document.createElement('div');v.className='vid';
+   v.innerHTML='<span class="big">🎬</span><span>'+j.parameters.width+'×'+j.parameters.height+'</span><span>'+j.parameters.seconds+'s 视频</span>';
+   th.append(v);
+   const pb=document.createElement('span');pb.className='play-badge';pb.textContent='▶';th.append(pb);
+  }
+ }else{
+  th.textContent=j.status==='running'?'生成中…':(j.status==='queued'?'排队中':'–');
+ }
+ el.append(th);
+ /* 信息 */
+ const info=document.createElement('div');info.className='minfo';
+ const h3=document.createElement('div');h3.className='jhead';
+ const chip=document.createElement('span');chip.className='chip st-'+j.status;chip.textContent=STATUS_ZH[j.status]||j.status;
+ if(j.bumped){const b=document.createElement('span');b.className='chip bump';b.textContent='⚡已插队';h3.append(b)}
+ const jm=document.createElement('span');jm.className='jmodel';jm.textContent=modelName(j)+' · '+j.id.slice(0,8);
+ const age=document.createElement('span');age.className='age';age.textContent=(j.client&&j.client.ip)||'';
+ h3.append(chip,jm,age);info.append(h3);
+ const pr=document.createElement('div');pr.className='jprompt';pr.textContent=(j.parameters&&j.parameters.prompt)||'';info.append(pr);
+ const meta=document.createElement('div');meta.className='jmeta';
+ meta.innerHTML=metaText(j);
+ info.append(meta);
+ el.append(info);
+ /* 操作 */
+ const act=document.createElement('div');act.className='mact';
+ const acts=document.createElement('div');acts.className='actions';
+ const btn=(t,fn,cls='secondary')=>{const b=document.createElement('button');b.type='button';b.className=cls;b.textContent=t;b.onclick=fn;acts.append(b);return b};
+ btn('详情',()=>openDetail(j));
+ if(j.status==='succeeded')btn('下载',()=>download(j));
+ if(j.status==='queued')btn(j.bumped?'再次插队':'插队',()=>bumpJob(j));
+ if(j.status==='queued'||j.status==='running')btn('取消',()=>cancelJob(j));
+ if(j.status==='failed'||j.status==='cancelled'||j.status==='interrupted')btn('重试',()=>retryJob(j),'primary');
+ act.append(acts);el.append(act);
+ el._refs={h3,chip,th,meta,acts};el._thumbStatus=j.status;
+ updateRowM(el,j);
+ return el;
+}
+function fillThumb(th,j){
+ th.replaceChildren();
+ if(j.status==='succeeded'){
+  th.classList.add('clickable');th.title='点击大图展示 / 播放';th.onclick=()=>openLightbox(j);
+  if(j.parameters.kind==='image'){
+   thumbURL(j).then(u=>{if(u){const img=document.createElement('img');img.src=u;img.alt='产物缩略图';th.append(img)}});
+  }else{
+   const v=document.createElement('div');v.className='vid';
+   v.innerHTML='<span class="big">🎬</span><span>'+j.parameters.width+'×'+j.parameters.height+'</span><span>'+j.parameters.seconds+'s 视频</span>';
+   th.append(v);
+   const pb=document.createElement('span');pb.className='play-badge';pb.textContent='▶';th.append(pb);
+  }
+ }else{th.classList.remove('clickable');th.onclick=null;th.textContent=j.status==='running'?'生成中…':(j.status==='queued'?'排队中':'–')}
+}
+function updateRowM(el,j){
+ const r=el._refs;if(!r)return;
+ r.chip.className='chip st-'+j.status;r.chip.textContent=STATUS_ZH[j.status]||j.status;
+ const b=r.h3.querySelector('.chip.bump');
+ if(j.bumped&&!b){const n=document.createElement('span');n.className='chip bump';n.textContent='⚡已插队';r.h3.append(n)}
+ else if(!j.bumped&&b)b.remove();
+ r.meta.innerHTML=metaText(j);
+ if(el._thumbStatus!==j.status){el._thumbStatus=j.status;fillThumb(r.th,j)} // 仅状态变化时重建缩略图
+ r.acts.replaceChildren();
+ const btn=(t,fn,cls='secondary')=>{const bb=document.createElement('button');bb.type='button';bb.className=cls;bb.textContent=t;bb.onclick=fn;r.acts.append(bb);return bb};
+ btn('详情',()=>openDetail(j));
+ if(j.status==='succeeded')btn('下载',()=>download(j));
+ if(j.status==='queued')btn(j.bumped?'再次插队':'插队',()=>bumpJob(j));
+ if(j.status==='queued'||j.status==='running')btn('取消',()=>cancelJob(j));
+ if(j.status==='failed'||j.status==='cancelled'||j.status==='interrupted')btn('重试',()=>retryJob(j),'primary');
+}
+function renderList(data){
+ const filtered=data.filter(match);
+ const list=$('list');
+ const e=list.querySelector(':scope > .empty');
+ if(e)e.remove();
+ syncRows(list,filtered.slice(0,shown),rowCard,updateRowM);
+ if(!filtered.length){const d=document.createElement('div');d.className='empty';d.textContent='没有匹配的任务。';list.append(d)}
+ const more=$('more-wrap');more.replaceChildren();
+ if(filtered.length>shown){
+  const b=document.createElement('button');b.type='button';b.className='secondary small';
+  b.textContent='加载更多（共 '+filtered.length+' 个，已显示 '+shown+'）';
+  b.onclick=()=>{shown+=40;renderList(data)};
+  more.append(b);
+ }
+ $('queue-count').textContent='队列 '+(data.filter(j=>j.status==='running'||j.status==='queued').length);
+ $('upd').textContent='· 更新 '+new Date().toLocaleTimeString('zh-CN',{hour12:false});
+}
+let pollTimer=null,lastBusy=null;
+function scheduleNext(){
+ clearTimeout(pollTimer);
+ const busy=lastBusy===null?true:!!lastBusy;
+ pollTimer=setTimeout(()=>{if(!document.hidden)refresh()},busy?3000:15000);
+}
+async function refresh(){
+ const data=await fetchJobs();
+ if(data==null){scheduleNext();return}
+ lastBusy=data.some(j=>j.status==='running'||j.status==='queued');
+ diffToasts(prevMap,data);
+ renderList(data);
+ scheduleNext();
+}
+function onChanged(){refresh()}
+async function onReady(){refresh()}
+
+document.querySelectorAll('#filters .tab').forEach(t=>t.onclick=()=>{
+ filter=t.dataset.f;shown=40;
+ document.querySelectorAll('#filters .tab').forEach(x=>x.classList.toggle('active',x===t));
+ refresh();
+});
+
+initKeyBar();
+initSharedModals();
+if(keyVal())connect();
+scheduleNext();
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});
+</script>
+</body></html>

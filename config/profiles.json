@@ -1,0 +1,157 @@
+{
+  "version": 1,
+  "engines": {
+    "iris-metal": {
+      "type": "builtin"
+    },
+    "mflux": {
+      "type": "builtin"
+    },
+    "moss-edit-mps": {
+      "type": "builtin"
+    },
+    "h3-c": {
+      "type": "builtin",
+      "label": "h3.c"
+    },
+    "h3-image-metal": {
+      "type": "builtin"
+    },
+    "vpipe": {
+      "type": "builtin",
+      "label": "vpipe"
+    },
+    "qwen3-tts-mlx": {
+      "type": "script",
+      "contract": "gateway.task.v1",
+      "argv": [
+        "{python}",
+        "{config_dir}/../examples/qwen3_tts_mlx.py",
+        "{job_dir}"
+      ],
+      "required_paths": [
+        "{config_dir}/../examples/qwen3_tts_mlx.py"
+      ]
+    }
+  },
+  "profiles": {
+    "flux3": {
+      "kind": "image",
+      "name": "FLUX.3 Image Klein",
+      "directory": "FLUX.3-Image-Klein",
+      "steps": 16,
+      "guidance": 0,
+      "available_gib_required": 28,
+      "model_id": "FLUX.3-Image-Klein",
+      "engine": "iris-metal",
+      "backend": "flux3"
+    },
+    "zimage": {
+      "kind": "image",
+      "name": "Z-Image Turbo",
+      "directory": "Z-Image-Turbo",
+      "steps": 9,
+      "guidance": null,
+      "quantize": 8,
+      "available_gib_required": 34,
+      "model_id": "Z-Image-Turbo",
+      "engine": "mflux",
+      "backend": "zimage"
+    },
+    "moss": {
+      "kind": "image",
+      "name": "MOSS-Image-SFT",
+      "directory": "MOSS-Image-SFT",
+      "steps": 50,
+      "guidance": 3,
+      "quantize": 8,
+      "available_gib_required": 20,
+      "model_id": "MOSS-Image-SFT",
+      "engine": "mflux",
+      "backend": "moss"
+    },
+    "moss-edit": {
+      "kind": "image",
+      "name": "MOSS-Image Edit（图生图）",
+      "directory": "MOSS-Image-SFT",
+      "steps": 50,
+      "guidance": 3,
+      "available_gib_required": 30,
+      "model_id": "MOSS-Image-SFT",
+      "engine": "moss-edit-mps",
+      "backend": "moss-edit"
+    },
+    "h3": {
+      "kind": "video",
+      "name": "MiniMax-H3",
+      "directory": "MiniMax-H3",
+      "steps": 20,
+      "guidance": null,
+      "available_gib_required": 13,
+      "model_id": "MiniMax-H3",
+      "engine": "h3-c",
+      "backend": "h3"
+    },
+    "h3-image": {
+      "kind": "image",
+      "name": "MiniMax H3-Image",
+      "directory": "MiniMax-H3-Image",
+      "steps": 6,
+      "guidance": null,
+      "available_gib_required": 13,
+      "model_id": "MiniMax-H3-Image",
+      "engine": "h3-image-metal",
+      "backend": "h3-image"
+    },
+    "vpipe-2k": {
+      "kind": "video",
+      "name": "H3 latent 2K 重制（vpipe）",
+      "directory": "MiniMax-H3",
+      "steps": 3,
+      "guidance": null,
+      "available_gib_required": 50,
+      "model_id": "MiniMax-H3",
+      "engine": "vpipe",
+      "backend": "vpipe-2k"
+    },
+    "vpipe-h3": {
+      "kind": "video",
+      "name": "H3 视频生成（vpipe FL2VA）",
+      "directory": "MiniMax-H3",
+      "steps": 6,
+      "guidance": null,
+      "available_gib_required": 50,
+      "model_id": "MiniMax-H3",
+      "engine": "vpipe",
+      "backend": "vpipe-h3"
+    },
+    "qwen3-tts": {
+      "kind": "audio",
+      "name": "Qwen3-TTS Base (MLX)",
+      "model_id": "Qwen3-TTS-12Hz-1.7B-Base-8bit",
+      "engine": "qwen3-tts-mlx",
+      "directory": "Qwen3-TTS-12Hz-1.7B-Base-8bit",
+      "available_gib_required": 6,
+      "steps": 1,
+      "guidance": null,
+      "input_roles": [
+        "reference_audio"
+      ],
+      "options": {
+        "temperature": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1.5
+        },
+        "max_tokens": {
+          "type": "integer",
+          "minimum": 32,
+          "maximum": 2048
+        },
+        "ref_text": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

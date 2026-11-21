@@ -1,0 +1,1 @@
+{"schema_version":"gateway.task.v1","profile":"zimage","kind":"image","inputs":{"prompt":"A small ceramic teapot in soft daylight","assets":[]},"parameters":{"width":512,"height":512,"seed":42},"options":{},"metadata":{"client":"task-v1-example"}}

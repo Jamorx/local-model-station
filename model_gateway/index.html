@@ -1,0 +1,375 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>本地媒体实验室 · 新任务</title>
+<link rel="stylesheet" href="/static.css">
+<body>
+<header>
+ <small>LOCAL MEDIA LAB · 离线模型 · 内存等待队列</small>
+ <h1>本地图片 / 视频生成</h1>
+ <nav>
+  <a href="/" class="active">新任务</a><a href="/manage">任务管理</a>
+  <span class="hl"><a href="/api/help">API 文档</a><a href="/api/help">实测报告</a></span>
+ </nav>
+</header>
+
+<div id="keybar">
+ <span class="klabel">API 密钥（沿用 oMLX）</span>
+ <input id="key" type="password" autocomplete="off" placeholder="输入现有 oMLX 密钥">
+ <label class="remember"><input id="remember" type="checkbox">此设备记住</label>
+ <span id="conn" class="dot off"></span><span id="conn-text">未连接</span>
+</div>
+
+<div id="statusbar">
+ <div class="mem">
+  <div class="mem-label">可用内存 <b id="avail">–</b> GiB（整机 96 GiB）</div>
+  <div class="mem-bar"><div id="mem-fill"></div></div>
+ </div>
+ <div id="model-chips"></div>
+ <div class="sb-right"><span id="active-job">空闲</span> · <span id="queue-count">队列 0</span> · <span id="wait-timeout"></span></div>
+</div>
+
+<main class="grid2">
+<section id="submit-pane">
+ <h2>提交新任务</h2>
+ <form id="form">
+  <div class="tabs" id="kind-tabs">
+   <button type="button" class="tab active" data-kind="image">生图</button>
+   <button type="button" class="tab" data-kind="video">生视频</button>
+  </div>
+  <label>模型</label>
+  <select id="model"></select>
+  <div id="model-badge"></div>
+  <label>内容描述（prompt）</label>
+  <textarea id="prompt" maxlength="4000" placeholder="描述要生成的画面，英文提示词效果更好"></textarea>
+  <div id="i2i">
+   <label>输入图（zimage 可选；MOSS Edit 必填=编辑源图；MOSS 不支持，≤4MiB）</label>
+   <input id="i2i-file" type="file" accept="image/png,image/jpeg,image/webp">
+   <div id="i2i-preview" hidden><img id="i2i-img" alt="输入图预览"><button type="button" id="i2i-clear" class="secondary small">移除</button></div>
+   <label>图生图强度（0.1–1.0，留空=模型默认；越小越接近输入图）</label>
+   <input id="i2i-strength" type="number" step="0.05" min="0.1" max="1" placeholder="默认">
+  </div>
+  <label>画布</label>
+  <select id="preset"></select>
+  <div class="row">
+   <div><label>宽（32 对齐）</label><input id="width" type="number" min="256" max="1536" step="32"></div>
+   <div><label>高（32 对齐）</label><input id="height" type="number" min="256" max="1536" step="32"></div>
+  </div>
+  <details id="adv">
+   <summary>高级参数</summary>
+   <div class="row">
+    <div><label>步数（1–60）</label><input id="steps" type="number" min="1" max="60"></div>
+    <div><label>随机种子</label><div class="seedrow"><input id="seed" type="number" min="0" max="2147483647"><button type="button" id="reroll" class="secondary" title="随机种子">🎲</button></div></div>
+   </div>
+   <div id="img-only"><label>引导系数（0–10，留空=模型默认）</label><input id="guidance" type="number" step="0.1" min="0" max="10" placeholder="默认"></div>
+   <div id="vid-only" hidden>
+    <div class="row">
+     <div><label>时长（秒）</label><select id="seconds"><option value="1">1（冒烟测试）</option><option value="5" selected>5</option><option value="10">10</option><option value="15">15</option></select></div>
+     <div><label>精度</label><select id="precision"><option value="default-mixed-int8" selected>混合 INT8（默认）</option><option value="row-int8-fc2">行 INT8 FC2</option><option value="bf16-projections">BF16 关键投影（慢）</option></select></div>
+    </div>
+    <div class="row">
+     <div><label>层数</label><select id="layers"><option value="45" selected>45</option><option value="50">50</option></select></div>
+     <div><label>复用</label><select id="reuse"><option value="2" selected>2</option><option value="1">1</option></select></div>
+    </div>
+    <label>首帧（可选，PNG/JPEG/WebP ≤4MiB）</label>
+    <input id="first" type="file" accept="image/png,image/jpeg,image/webp">
+    <div id="first-preview" hidden><img id="first-img" alt="首帧预览"><button type="button" id="first-clear" class="secondary small">移除</button></div>
+    <label>参考图（可选，≤12 张有序，启用 Ref2VA；与首帧互斥）</label>
+    <input id="refs" type="file" multiple accept="image/png,image/jpeg,image/webp">
+    <div id="refs-info" class="muted"></div>
+   </div>
+  </details>
+  <div id="hint" class="muted"></div>
+  <button id="submit" type="submit">提交任务</button>
+  <p class="muted" style="margin-top:10px">提交后任务在右侧“我的任务”中实时追踪；内存不足会排队等待（满足自动开始），可点“插队”提到队首。</p>
+ </form>
+</section>
+
+<section id="track-pane">
+ <h2>我的任务 <span id="upd" class="muted"></span></h2>
+ <div class="group" id="g-active"><h3>进行中 / 排队等待</h3><div class="gbody" id="active-body"></div></div>
+ <div class="group" id="g-done"><h3>最近完成</h3><div class="gbody" id="done-body"></div></div>
+ <div class="group" id="g-failed"><h3>最近失败 / 已取消（可重试）</h3><div class="gbody" id="failed-body"></div></div>
+</section>
+</main>
+
+<div id="logmask" class="mask" hidden>
+ <div class="modal">
+  <div class="mhead"><b>任务日志</b><span id="log-title" class="muted"></span><button class="x" id="log-close" type="button">×</button></div>
+  <div class="mopts">
+   <label class="inline"><input type="checkbox" id="log-auto" checked>运行中自动刷新</label>
+   <label class="inline"><input type="checkbox" id="log-follow" checked>跟随底部</label>
+  </div>
+  <pre id="logbody">加载日志…</pre>
+ </div>
+</div>
+
+<div id="detmask" class="mask" hidden>
+ <div class="modal">
+  <div class="mhead"><b>任务详情</b><span id="det-title" class="muted"></span><button class="x" id="det-close" type="button">×</button></div>
+  <div id="detbody"></div>
+ </div>
+</div>
+
+<div id="toasts"></div>
+
+<script src="/static.js"></script>
+<script>
+const PRESETS={
+ image:[['1024×1024 方图',1024,1024],['1152×768 横图',1152,768],['768×1152 竖图',768,1152],['1536×1024 宽幅',1536,1024],['1024×1536 竖幅',1024,1536]],
+ video:[['512×512（推荐）',512,512],['768×768',768,768],['1024×576 横图',1024,576],['576×1024 竖图',576,1024],['1280×736 720级横',1280,736],['736×1280 720级竖',736,1280]]
+};
+let kind='image',highlightId=null;
+const prevMap=new Map();
+
+function modelList(){
+ $('model').replaceChildren();
+ let firstId=null;
+ for(const [id,c] of Object.entries(CONFIGS)){
+  if(c.kind!==kind)continue;
+  if(!firstId)firstId=id;
+  const o=new Option((c.available?c.name:c.name+'（本地缺失）')+' · 需可用 '+c.available_gib_required+'GiB',id);
+  o.disabled=!c.available;
+  $('model').add(o);
+ }
+ if($('model').selectedOptions.length===0&&firstId)$('model').value=firstId;
+ applyKind();
+}
+function applyKind(){
+ $('img-only').hidden=kind!=='image';
+ $('vid-only').hidden=kind!=='video';
+ $('i2i').hidden=kind!=='video';
+ const c=CONFIGS[$('model').value]||{};
+ $('steps').value=c.steps||9;
+ $('guidance').value=c.guidance==null?'':c.guidance;
+ const ps=PRESETS[kind];
+ $('preset').replaceChildren();
+ for(const [label,w,h] of ps)$('preset').add(new Option(label+'（'+w+'×'+h+'）',w+'x'+h));
+ $('preset').add(new Option('自定义','custom'));
+ $('preset').selectedIndex=0;
+ const first=ps[0];
+ $('width').value=first[1];$('height').value=first[2];
+ $('hint').textContent=HINTS[$('model').value]||'';
+ updateModelBadge();
+}
+function updateModelBadge(){
+ const c=CONFIGS[$('model').value];const badge=$('model-badge');
+ badge.replaceChildren();
+ if(!c||!health)return;
+ const a=health.available_gib;
+ const s=document.createElement('span');s.className='chip';
+ if(a==null){s.textContent='内存状态未知';badge.append(s);return}
+ if(a>=c.available_gib_required){s.className='chip ok';s.textContent='内存充足（需 '+c.available_gib_required+' / 可用 '+a.toFixed(1)+' GiB），提交后即可开始'}
+ else{s.className='chip wait';s.textContent='内存不足（需 '+c.available_gib_required+' / 可用 '+a.toFixed(1)+' GiB），提交后排队等待，满足后自动开始'}
+ badge.append(s);
+}
+
+function trackCard(j){
+ const el=document.createElement('div');
+ el.className='job'+(j.id===highlightId?' hl':'');
+ el.dataset.id=j.id;
+ if(j.status==='running')el.dataset.started=j.started_at||'';
+ const h3=document.createElement('div');h3.className='jhead';
+ const chip=document.createElement('span');chip.className='chip st-'+j.status;chip.textContent=STATUS_ZH[j.status]||j.status;
+ if(j.bumped){const b=document.createElement('span');b.className='chip bump';b.textContent='⚡已插队';h3.append(b)}
+ const jm=document.createElement('span');jm.className='jmodel';jm.textContent=modelName(j)+' · '+j.id.slice(0,8);
+ const age=document.createElement('span');age.className='age';age.textContent=j.parameters.kind==='video'?'视频':'图片';
+ h3.append(chip,jm,age);el.append(h3);
+ const st=document.createElement('div');st.innerHTML=stepsHTML(j);el.append(st);
+ const pr=document.createElement('div');pr.className='jprompt';pr.textContent=j.parameters.prompt||'';el.append(pr);
+ const meta=document.createElement('div');meta.className='jmeta';meta.innerHTML=metaText(j);el.append(meta);
+ const acts=document.createElement('div');acts.className='actions';
+ const btn=(t,fn,cls='secondary')=>{const b=document.createElement('button');b.type='button';b.className=cls;b.textContent=t;b.onclick=fn;acts.append(b);return b};
+ if(j.status==='queued')btn(j.bumped?'再次插队':'插队到队首',()=>bumpJob(j));
+ if(j.status==='queued'||j.status==='running')btn('取消',()=>cancelJob(j));
+ btn('日志',()=>openLog(j));
+ btn('详情',()=>openDetail(j));
+ el.append(acts);
+ el._refs={chip,h3,st,meta,acts};
+ return el;
+}
+function updateTrackCard(el,j){
+ const r=el._refs;if(!r)return;
+ if(j.status==='running')el.dataset.started=j.started_at||'';else el.removeAttribute('data-started');
+ r.chip.className='chip st-'+j.status;r.chip.textContent=STATUS_ZH[j.status]||j.status;
+ const b=r.h3.querySelector('.chip.bump');
+ if(j.bumped&&!b){const n=document.createElement('span');n.className='chip bump';n.textContent='⚡已插队';r.h3.append(n)}
+ else if(!j.bumped&&b)b.remove();
+ r.st.innerHTML=stepsHTML(j);
+ r.meta.innerHTML=metaText(j);
+ r.acts.replaceChildren();
+ const btn=(t,fn,cls='secondary')=>{const bb=document.createElement('button');bb.type='button';bb.className=cls;bb.textContent=t;bb.onclick=fn;r.acts.append(bb);return bb};
+ if(j.status==='queued')btn(j.bumped?'再次插队':'插队到队首',()=>bumpJob(j));
+ if(j.status==='queued'||j.status==='running')btn('取消',()=>cancelJob(j));
+ btn('日志',()=>openLog(j));
+ btn('详情',()=>openDetail(j));
+}
+function doneRow(j){
+ const el=document.createElement('div');el.className='job';el.dataset.id=j.id;
+ const h3=document.createElement('div');h3.className='jhead';
+ const chip=document.createElement('span');chip.className='chip st-succeeded';chip.textContent='已完成';
+ const jm=document.createElement('span');jm.className='jmodel';jm.textContent=modelName(j)+' · '+j.id.slice(0,8);
+ const age=document.createElement('span');age.className='age';age.textContent=fmtTime(j.finished_at);
+ h3.append(chip,jm,age);el.append(h3);
+ const meta=document.createElement('div');meta.className='jmeta';meta.innerHTML=metaText(j);el.append(meta);
+ const acts=document.createElement('div');acts.className='actions';
+ const btn=(t,fn,cls='secondary')=>{const b=document.createElement('button');b.type='button';b.className=cls;b.textContent=t;b.onclick=fn;acts.append(b);return b};
+ btn('下载产物',()=>download(j));
+ btn('日志',()=>openLog(j));
+ btn('详情',()=>openDetail(j));
+ el.append(acts);
+ el._refs={meta};
+ inlineMedia(j).then(m=>el.append(m)); return el; // 媒体元素只随创建挂一次，后续刷新不重建（播放不中断）
+}
+function doneRowUpdate(el,j){if(el._refs)el._refs.meta.innerHTML=metaText(j)}
+function failedRow(j){
+ const el=document.createElement('div');el.className='job';el.dataset.id=j.id;
+ const h3=document.createElement('div');h3.className='jhead';
+ const chip=document.createElement('span');chip.className='chip st-'+j.status;chip.textContent=STATUS_ZH[j.status]||j.status;
+ const jm=document.createElement('span');jm.className='jmodel';jm.textContent=modelName(j)+' · '+j.id.slice(0,8)+(j.retried_from?'（重试自 '+j.retried_from.slice(0,8)+'）':'');
+ const age=document.createElement('span');age.className='age';age.textContent=fmtTime(j.finished_at||j.created_at);
+ h3.append(chip,jm,age);el.append(h3);
+ const pr=document.createElement('div');pr.className='jprompt';pr.textContent=j.parameters.prompt||'';el.append(pr);
+ const meta=document.createElement('div');meta.className='jmeta';meta.innerHTML=metaText(j);el.append(meta);
+ const acts=document.createElement('div');acts.className='actions';
+ const btn=(t,fn,cls='secondary')=>{const b=document.createElement('button');b.type='button';b.className=cls;b.textContent=t;b.onclick=fn;acts.append(b);return b};
+ btn('重试',()=>retryJob(j),'primary');
+ btn('日志',()=>openLog(j));
+ btn('详情',()=>openDetail(j));
+ el.append(acts);
+ el._refs={meta};
+ return el;
+}
+function failedRowUpdate(el,j){if(el._refs)el._refs.meta.innerHTML=metaText(j)}
+function setGroup(container,desired,createFn,updateFn,emptyText){
+ const e=container.querySelector(':scope > .empty');
+ if(e)e.remove();
+ syncRows(container,desired,createFn,updateFn);
+ if(!desired.length){const d=document.createElement('div');d.className='empty';d.textContent=emptyText;container.append(d)}
+}
+function renderTrack(data){
+ const active=data.filter(j=>j.status==='running'||j.status==='queued');
+ active.sort((a,b)=>(b.created_at||0)-(a.created_at||0));
+ const done=data.filter(j=>j.status==='succeeded').slice(0,5);
+ const bad=data.filter(j=>j.status==='failed'||j.status==='cancelled'||j.status==='interrupted').slice(0,5);
+ setGroup($('active-body'),active,trackCard,updateTrackCard,'当前没有进行中或排队的任务。');
+ setGroup($('done-body'),done,doneRow,doneRowUpdate,'暂无最近完成任务。');
+ setGroup($('failed-body'),bad,failedRow,failedRowUpdate,'暂无失败任务。');
+ $('queue-count').textContent='队列 '+active.length;
+ $('upd').textContent='· 更新 '+new Date().toLocaleTimeString('zh-CN',{hour12:false});
+ if(highlightId){
+  const el=document.querySelector('.job[data-id="'+highlightId+'"]');
+  if(el){el.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>{highlightId=null},8000)}
+ }
+}
+
+let pollTimer=null,lastBusy=null;
+function scheduleNext(){
+ clearTimeout(pollTimer);
+ const busy=lastBusy===null?true:!!lastBusy;
+ pollTimer=setTimeout(()=>{if(!document.hidden)refresh()},busy?3000:15000); // 有任务3秒，空闲15秒
+}
+async function refresh(){
+ const data=await fetchJobs();
+ if(data==null){scheduleNext();return} // 304未变化/错误：不渲染
+ lastBusy=data.some(j=>j.status==='running'||j.status==='queued');
+ diffToasts(prevMap,data);
+ renderTrack(data);
+ scheduleNext();
+}
+function onChanged(){refresh()}
+function onRetried(d){highlightId=d.id}
+async function onReady(){refresh()}
+function onStatus(){updateModelBadge()}
+
+document.querySelectorAll('#kind-tabs .tab').forEach(t=>t.onclick=()=>{
+ kind=t.dataset.kind;
+ document.querySelectorAll('#kind-tabs .tab').forEach(x=>x.classList.toggle('active',x===t));
+ modelList();
+});
+$('model').onchange=()=>{
+ const c=CONFIGS[$('model').value]||{};
+ if(c.steps)$('steps').value=c.steps;
+ $('guidance').value=c.guidance==null?'':c.guidance;
+ $('hint').textContent=HINTS[$('model').value]||'';
+ updateModelBadge();
+};
+$('preset').onchange=()=>{const v=$('preset').value;if(v==='custom')return;const [w,h]=v.split('x').map(Number);$('width').value=w;$('height').value=h};
+$('width').onchange=()=>{$('preset').value='custom'};
+$('height').onchange=()=>{$('preset').value='custom'};
+$('reroll').onclick=()=>$('seed').value=Math.floor(Math.random()*2147483647);
+$('first').onchange=()=>{
+ const f=$('first').files[0],pv=$('first-preview');
+ if(!f){pv.hidden=true;return}
+ if(f.size>4*1024**2){toast('首帧超过 4MiB，已忽略','err');$('first').value='';pv.hidden=true;return}
+ $('first-img').src=URL.createObjectURL(f);pv.hidden=false;
+};
+$('first-clear').onclick=()=>{$('first').value='';$('first-preview').hidden=true};
+$('refs').onchange=()=>{
+ const fs=[...$('refs').files],el=$('refs-info');
+ if(fs.length>12){toast('参考图最多 12 张','err');$('refs').value='';el.textContent='';return}
+ const bad=fs.find(f=>f.size>4*1024**2);
+ if(bad){toast('参考图「'+bad.name+'」超过 4MiB','err');$('refs').value='';el.textContent='';return}
+ el.textContent=fs.length?('已选 '+fs.length+' 张（按选择顺序作为有序参考图）'):'';
+ if(fs.length){$('first').value='';$('first-preview').hidden=true}
+};
+$('i2i-file').onchange=()=>{
+ const f=$('i2i-file').files[0],pv=$('i2i-preview');
+ if(!f){pv.hidden=true;return}
+ if(f.size>4*1024**2){toast('输入图超过 4MiB，已忽略','err');$('i2i-file').value='';pv.hidden=true;return}
+ $('i2i-img').src=URL.createObjectURL(f);pv.hidden=false;
+};
+$('i2i-clear').onclick=()=>{$('i2i-file').value='';$('i2i-preview').hidden=true};
+
+$('form').onsubmit=async e=>{
+ e.preventDefault();
+ const b=$('submit');if(b.disabled)return;b.disabled=true;
+ try{
+  const p={kind,model:$('model').value,prompt:$('prompt').value.trim(),width:Number($('width').value),height:Number($('height').value),steps:Number($('steps').value),seed:Number($('seed').value)};
+  if(!p.prompt)throw Error('请填写内容描述');
+  if(!p.width||!p.height)throw Error('请填写画布宽高');
+  if(p.width%32||p.height%32)throw Error('宽高必须是 32 的倍数');
+  const maxPx=kind==='video'?1032192:1572864;
+  if(p.width*p.height>maxPx)throw Error('画布超出上限（'+(kind==='video'?'视频最多 ':'图片最多 ')+maxPx+' 像素）');
+  if(kind==='image'&&$('guidance').value!=='')p.guidance=Number($('guidance').value);
+  const i2f=$('i2i-file').files[0];
+  if(i2f){
+   if(kind!=='image')throw Error('输入图仅用于生图');
+   if(p.model==='moss')throw Error('MOSS 不支持图生图，请改用 zimage 或 qwen21');
+   if(i2f.size>4*1024**2)throw Error('输入图超过 4MiB');
+   p.input_image_base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(i2f)});
+   if($('i2i-strength').value!=='')p.image_strength=Number($('i2i-strength').value);
+  }
+  if(p.model==='moss-edit'&&!i2f)throw Error('MOSS Edit 需要输入图（编辑源图）');
+  if(kind==='video'){
+   p.seconds=Number($('seconds').value);p.precision=$('precision').value;p.layers=Number($('layers').value);p.reuse=Number($('reuse').value);
+   const f=$('first').files[0];
+   if(f){
+    if(f.size>4*1024**2)throw Error('首帧超过 4MiB');
+    p.first_frame_base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)});
+   }
+   const rfs=[...$('refs').files];
+   if(rfs.length){
+    if(p.first_frame_base64)throw Error('参考图（Ref2VA）与首帧不能同时使用');
+    p.ref_images_base64=[];
+    for(const f of rfs){
+     if(f.size>4*1024**2)throw Error('参考图「'+f.name+'」超过 4MiB');
+     p.ref_images_base64.push(await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)}));
+    }
+   }
+  }
+  const j=await(await api('/api/jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p)})).json();
+  const c=CONFIGS[p.model]||{};
+  const a=health?health.available_gib:null;
+  toast('已提交：'+(c.name||p.model)+' '+j.id.slice(0,8)+(a!=null&&a>=c.available_gib_required?'（内存充足，即将开始）':'（内存不足，进入等待队列，满足后自动开始）'),'info');
+  highlightId=j.id;
+  $('prompt').value='';$('first').value='';$('first-preview').hidden=true;$('refs').value='';$('refs-info').textContent='';
+  await refresh();
+ }catch(err){toast(err.message,'err')}
+ finally{b.disabled=false}
+};
+
+initKeyBar();
+initSharedModals();
+if(keyVal())connect();
+scheduleNext();
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh()});
+</script>
+</body></html>

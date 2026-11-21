@@ -1,0 +1,63 @@
+{
+  "source_directory": "~/LocalModelLab/media-service",
+  "copied_on": "2026-11-14",
+  "excluded": "jobs, models, secrets, LMDB, caches, backup files, service reload helper",
+  "files": [
+    {
+      "file": "app.py",
+      "source_sha256": "f8c61560d5455bc6a81218261c807a4dca098f4f90af7f44928d36abae54fa74"
+    },
+    {
+      "file": "runner.py",
+      "source_sha256": "8213c4c636e5e72ffde240ff4a318d4a1158e8eba3b6e87218002efe62710172"
+    },
+    {
+      "file": "index.html",
+      "source_sha256": "c30c5b83e211ff5965edbe33f0bf9879d870aa3c1222c35cfbbfa2a8700b9f54"
+    },
+    {
+      "file": "manage.html",
+      "source_sha256": "165741af2aa9b4a2134989df90ab7d47e10830b18e3a11448fb86bad6d4936fd"
+    },
+    {
+      "file": "static.js",
+      "source_sha256": "321445eb4b1a1e45e998c33d1193ab1b58e4dcc437f78c75d24031b09247f249"
+    },
+    {
+      "file": "static.css",
+      "source_sha256": "2998eac18a8880063198542d534637a4d3a14c26650b0dc27b8cecfb0f86a804"
+    },
+    {
+      "file": "help.html",
+      "source_sha256": "21ee443ac8afd3ae42bfc06a1d0e3fdf608b7f5a2a970168f3b13c28bfe678da"
+    },
+    {
+      "file": "HELP.md",
+      "source_sha256": "23459e17d1e6fbee6250792ef7ef32b6467040b02eaabb5f4b00cd62e5ec0c8f"
+    },
+    {
+      "file": "h3_image_decode.py",
+      "source_sha256": "f165b9721d1bc0fc27b8241e5ca321b2a2d75a6bd789328252105d425faf914b"
+    },
+    {
+      "file": "h3edit_encode.py",
+      "source_sha256": "aea25c178b198624225d200fff4b4ee9fbcd6f255b7f4449f85575d16af6575d"
+    },
+    {
+      "file": "moss_edit.py",
+      "source_sha256": "eaf74a5de843189d5e93e03b455d1c5ea0eed503b1083eb648fa811da1b9d31d"
+    },
+    {
+      "file": "assets/vpipe-2k.vpipeline",
+      "source_sha256": "f52e73a477971df4c23b2da99d1da785fa4c1abf6990da26d7e0d4cd88dc197d"
+    },
+    {
+      "file": "moss_edit_deps/mps_runtime.py",
+      "source_sha256": "30f01b265982be3b86c3328bcec1723bc4f7d24051886b862929dead1751960a"
+    },
+    {
+      "file": "moss_edit_deps/pipeline_moss_image.py",
+      "source_sha256": "1dac1aca9feb1bfdfc727a401e4b67d61a505d3190706d1b7d2d784f88678b31"
+    }
+  ]
+}

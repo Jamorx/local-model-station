@@ -1,6 +1,6 @@
 # Local Model Station
 
-面向 Apple Silicon 的本地模型工作台，提供模型下载、图像／视频／音频任务队列、Splash 引擎状态与统一 API。默认端口为 **8777**。
+面向 Apple Silicon 的本地模型工作台，提供图像／视频／音频任务队列统一调度（按内存余量）、模型下载、Splash 引擎看板，默认端口为 **8777**。
 
 **首期仅支持 macOS。** 本地 MLX / Metal / MPS 生成主要面向 Apple Silicon；Intel Mac、Windows、Linux 暂不在支持范围。当前为 0.1 开发版，项目自有代码按 Apache-2.0 发布。推理引擎和模型权重需自行安装。
 

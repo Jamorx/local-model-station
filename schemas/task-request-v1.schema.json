@@ -1,0 +1,177 @@
+{
+  "$defs": {
+    "AssetInput": {
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "enum": [
+            "first_frame",
+            "last_frame",
+            "input_image",
+            "edit_image",
+            "reference_image",
+            "reference_audio",
+            "reference_video",
+            "audio_condition",
+            "draft"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "data_base64": {
+          "anyOf": [
+            {
+              "maxLength": 45000000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Data Base64"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AssetSource"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "role"
+      ],
+      "title": "AssetInput",
+      "type": "object"
+    },
+    "AssetSource": {
+      "additionalProperties": false,
+      "properties": {
+        "task_id": {
+          "pattern": "^[a-f0-9]{32}$",
+          "title": "Task Id",
+          "type": "string"
+        },
+        "asset_id": {
+          "pattern": "^[a-z0-9][a-z0-9_.-]{0,100}$",
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sha256"
+        }
+      },
+      "required": [
+        "task_id",
+        "asset_id"
+      ],
+      "title": "AssetSource",
+      "type": "object"
+    },
+    "Inputs": {
+      "additionalProperties": false,
+      "properties": {
+        "prompt": {
+          "maxLength": 7000,
+          "minLength": 1,
+          "title": "Prompt",
+          "type": "string"
+        },
+        "assets": {
+          "items": {
+            "$ref": "#/$defs/AssetInput"
+          },
+          "maxItems": 16,
+          "title": "Assets",
+          "type": "array"
+        }
+      },
+      "required": [
+        "prompt"
+      ],
+      "title": "Inputs",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "gateway.task.v1",
+      "default": "gateway.task.v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "profile": {
+      "maxLength": 80,
+      "minLength": 1,
+      "title": "Profile",
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "image",
+        "video",
+        "audio"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "inputs": {
+      "$ref": "#/$defs/Inputs"
+    },
+    "parameters": {
+      "additionalProperties": true,
+      "title": "Parameters",
+      "type": "object"
+    },
+    "options": {
+      "additionalProperties": true,
+      "title": "Options",
+      "type": "object"
+    },
+    "metadata": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "maxProperties": 32,
+      "title": "Metadata",
+      "type": "object"
+    },
+    "derived_from": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Derived From"
+    }
+  },
+  "required": [
+    "profile",
+    "kind",
+    "inputs"
+  ],
+  "title": "TaskRequest",
+  "type": "object"
+}

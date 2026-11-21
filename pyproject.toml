@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "local-model-station"
+version = "0.1.0"
+description = "Read-only local Splash status and model task contracts"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "psutil>=6,<8", "pydantic>=2.8,<3"]
+
+[project.scripts]
+local-model-station = "model_gateway.public_monitor:main"
+
+[tool.setuptools]
+packages = ["model_gateway"]

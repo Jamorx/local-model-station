@@ -317,7 +317,7 @@ async def lifespan(app):
   fcntl.flock(guard.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
  except BlockingIOError:
   guard.close();raise RuntimeError('A service already owns this task directory')
- t=None; downloader=None; callback_worker=None
+ t=None; downloader=None; callback_workers=[]
  try:
   closing.clear();wake.clear()
   for p in J.iterdir():
@@ -330,14 +330,15 @@ async def lifespan(app):
    t=threading.Thread(target=worker,daemon=True);t.start()
   if os.environ.get('MEDIA_DOWNLOADS_ENABLED',str(int(SERVICE_ID=='local.model-gateway')))=='1':
    downloader=download_engine.start()
-  callback_worker=threading.Thread(target=dsh_callbacks.run,args=(closing,),daemon=True)
-  callback_worker.start()
+  for agent in ('dsh-web','codex'):
+   callback_worker=threading.Thread(target=dsh_callbacks.run,args=(closing,agent),daemon=True)
+   callback_worker.start();callback_workers.append(callback_worker)
   yield
  finally:
   if downloader:download_engine.stop(downloader)
   closing.set();wake.set()
   if t:t.join(timeout=15)
-  if callback_worker:callback_worker.join(timeout=21)
+  for callback_worker in callback_workers:callback_worker.join(timeout=21)
   fcntl.flock(guard.fileno(),fcntl.LOCK_UN);guard.close()
 app=FastAPI(
  title='Local Model Station',version='0.1.0',lifespan=lifespan,

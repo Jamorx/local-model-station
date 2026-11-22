@@ -61,9 +61,9 @@ HTTP 202 只代表接收，不代表模型成功运行。内存不足会等待�
 
 暂停、恢复、排序与批量操作详见 [队列控制](QUEUE_CONTROL.md)。
 
-## DSH Web 服务端批次回调
+## 服务端批次回调
 
-由 8777 等待任务，并把结果发送到原 DSH Web 会话。提交方不需要安装等待器。部署者在任务目录的父目录创建 `dsh-web.json`，默认位于 `~/Library/Application Support/LocalModelGateway/dsh-web.json`。
+由 8777 等待任务，并把结果发送到原 DSH Web 或本机 Codex 会话。提交方不需要安装等待器。部署者在任务目录的父目录创建 `dsh-web.json`，默认位于 `~/Library/Application Support/LocalModelGateway/dsh-web.json`。
 
 ```json
 {"url":"http://dsh-host.lan:3443","result_base_url":"http://mac-host.lan:8777"}
@@ -72,11 +72,21 @@ HTTP 202 只代表接收，不代表模型成功运行。内存不足会等待�
 只配置可信的 DSH Web 地址。配置文件由部署者管理。若该 DSH Web 需要 Cookie，可通过 8777 进程环境变量 `DSH_WEB_COOKIE` 提供。8777 的回调登记与查询默认只允许回环来源。如果提交设备在局域网另一台机器上，部署者设置 `MEDIA_DSH_CALLBACK_KEY`，客户端附上 `X-DSH-Callback-Key`。设置了 `MEDIA_API_KEY` 时仍需常规 Bearer 鉴权。
 
 1. 通过 `POST /api/v1/tasks` 提交任务并记录任务 ID。
-2. 调用 `POST /api/v1/dsh-callbacks`，传入 `{"task_ids":["<任务 ID>"],"session_id":"<当前 DSH_SESSION_ID>"}`。同批任务与同一会话重复登记会返回同一通知 ID。
+2. 调用 `POST /api/v1/callbacks`，传入 `{"target":"dsh-web","task_ids":["<任务 ID>"],"session_id":"<当前 DSH_SESSION_ID>"}`。同批任务与同一会话重复登记会返回同一通知 ID。
 3. 收到 202 后即可结束当前轮次。任务全部到达终态后，8777 将状态、错误摘要和产物链接排入 DSH Web 原会话。
-4. `GET /api/v1/dsh-callbacks/{id}` 查询登记状态。`delivered` 表示 DSH Web 接受了消息。若投递超时、收到错误或服务在投递中重启，显示 `uncertain`，先核对原聊天，服务不会自动再开一轮。
+4. `GET /api/v1/callbacks/{id}` 查询登记状态。`delivered` 对 DSH Web 表示消息已被接收，对 Codex 表示 CLI 成功完成续跑。若投递超时、收到错误或服务在投递中重启，显示 `uncertain`，先核对原聊天，服务不会自动再开一轮。
 
 DSH 用户可以直接说「提交任务，完成后唤醒这条会话验收」。代理从 DSH 提供的环境变量读取当前 `DSH_SESSION_ID`。8777 的回调运行在自己的后台线程，等待时不调用文本模型。
+
+### Codex 服务端投递
+
+同一个 `POST /api/v1/callbacks` 支持 `target: codex` 和 Codex 会话 UUID。部署者在同一目录创建 `codex-callback.json`，例如：
+
+```json
+{"cwd":"/absolute/path/to/workspace","executable":"/opt/homebrew/bin/codex","result_base_url":"http://127.0.0.1:8777"}
+```
+
+可选 `model` 覆盖 Codex CLI 的默认模型。会话必须存在于 8777 运行账户可访问的 Codex 存储中，模型和登录配置也必须可用。服务端以只读沙箱、非交互审批执行，5 分钟超时后标为 `uncertain`。DSH Web 和 Codex 的投递独立运行。
 
 ## DSH 和 Codex 批次完成通知
 

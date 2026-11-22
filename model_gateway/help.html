@@ -18,7 +18,7 @@
 </div>
 <section class="card model-card splash-panel" id="batch-completion" aria-labelledby="batch-title">
 <h2 id="batch-title">DSH 和 Codex 批次完成通知</h2>
-<p>DSH Web 会话可直接向 8777 登记批次回调。全部任务结束后，8777 将结果排进原会话。无需安装等待器。</p><pre><code>POST /api/v1/dsh-callbacks</code></pre><p>需要在提交设备上独立等待，或恢复 Codex 会话时，可下载客户端。</p>
+<p>DSH Web 和本机 Codex 会话可向 8777 登记批次回调。全部任务结束后，8777 将结果排进原会话。无需安装等待器。</p><pre><code>POST /api/v1/callbacks</code></pre><p>需要在提交设备上独立等待，或恢复异机 Codex 会话时，可下载客户端。</p>
 <p><a href="/api/v1/clients/batch_wait.py">下载 batch_wait.py</a> · <a href="/api/help.md">查看后台运行、会话权限与接入示例</a></p>
 <pre><code>python3 batch_wait.py --url http://mac-host.lan:8777 "$TASK_ID_1" "$TASK_ID_2"</code></pre>
 <p>恢复原会话需要本机已安装对应的 DSH 或 Codex CLI，并能访问原会话和工作目录。</p>

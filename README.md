@@ -1,12 +1,13 @@
 # Local Model Station
 
-面向 Apple Silicon 的本地模型工作台，提供图像／视频／音频任务队列统一调度（按内存余量）、模型下载、Splash 引擎看板，默认端口为 **8777**。
+面向 Apple Silicon 的本地模型工作台，提供图像／视频／音频任务队列统一调度（按内存余量）、批次任务回调、模型下载和 Splash 引擎看板，默认端口为 **8777**。
 
 **首期仅支持 macOS。** 本地 MLX / Metal / MPS 生成主要面向 Apple Silicon；Intel Mac、Windows、Linux 暂不在支持范围。当前为 0.1 开发版，项目自有代码按 Apache-2.0 发布。推理引擎和模型权重需自行安装。
 
 ## 功能
 
 - 通过 Web 控制台或 API 排队、暂停和重试任务，查看日志并下载产物。
+- **任务回调**：整批任务完成后，自动唤醒原 DSH Web 或本机 Codex 会话，交付产物链接与失败摘要，继续验收。
 - 支持 OpenAI 风格 Chat Completions 文本转发，也可独立观察 Splash。
 - 支持图片、视频和音频任务，默认语音 profile 为 Qwen3-TTS。
 - 不提供候选评审、制作阶段流转或多 Agent 编排。Phosphene 暂无通用后端接入承诺。

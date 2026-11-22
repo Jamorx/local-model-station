@@ -4,6 +4,7 @@ from typing import Literal
 import sys
 from model_gateway.registry import Registry
 from model_gateway import download_engine, splash_status
+from model_gateway.dsh_callbacks import Callbacks
 from model_gateway.downloads import router as download_router
 from model_gateway.execution import checked_output
 import psutil
@@ -307,6 +308,7 @@ def worker():
    current=read(p);current.pop('paused_at',None);current.pop('paused_from',None);current.pop('pause_requested',None);current['execution_paused_seconds']=paused_total;current.update(status='cancelled' if error=='cancelled' or current.get('cancel_requested') else 'failed' if error else 'succeeded',finished_at=time.time(),elapsed_seconds=time.monotonic()-start,process_tree_rss_peak_bytes=rssmax,memory_note='1s process-tree RSS sum, not attributable Metal total; image result reports separate MLX peak')
    if error:current['error']=error
    write(p,current);active=None
+dsh_callbacks=Callbacks(J,folder,protocol.task_view,lock)
 @asynccontextmanager
 async def lifespan(app):
  if sys.platform!="darwin":raise RuntimeError("首期仅支持 macOS；Windows/Linux 尚不支持")
@@ -315,7 +317,7 @@ async def lifespan(app):
   fcntl.flock(guard.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
  except BlockingIOError:
   guard.close();raise RuntimeError('A service already owns this task directory')
- t=None; downloader=None
+ t=None; downloader=None; callback_worker=None
  try:
   closing.clear();wake.clear()
   for p in J.iterdir():
@@ -328,17 +330,21 @@ async def lifespan(app):
    t=threading.Thread(target=worker,daemon=True);t.start()
   if os.environ.get('MEDIA_DOWNLOADS_ENABLED',str(int(SERVICE_ID=='local.model-gateway')))=='1':
    downloader=download_engine.start()
+  callback_worker=threading.Thread(target=dsh_callbacks.run,args=(closing,),daemon=True)
+  callback_worker.start()
   yield
  finally:
   if downloader:download_engine.stop(downloader)
   closing.set();wake.set()
   if t:t.join(timeout=15)
+  if callback_worker:callback_worker.join(timeout=21)
   fcntl.flock(guard.fileno(),fcntl.LOCK_UN);guard.close()
 app=FastAPI(
  title='Local Model Station',version='0.1.0',lifespan=lifespan,
  description='任务与模型 API。批次完成后，提交设备可使用 [DSH / Codex 等待器](/api/help#batch-completion) 恢复会话。',
 )
 app.include_router(download_router([Depends(authorize)]))
+app.include_router(dsh_callbacks.router(authorize))
 app.mount('/assets/tabulator-6.6.1',StaticFiles(directory=ROOT/'assets/tabulator'),name='tabulator')
 app.mount('/assets/bootstrap-5.3.9',StaticFiles(directory=ROOT/'assets/bootstrap'),name='bootstrap')
 NO_STORE={'Cache-Control':'no-store'}

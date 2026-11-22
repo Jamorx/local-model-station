@@ -14,6 +14,7 @@ classifiers = ["Development Status :: 3 - Alpha", "Operating System :: MacOS", "
 
 [project.scripts]
 lmg = "model_gateway.__main__:main"
+lmg-batch = "model_gateway.batch_wait:main"
 
 [tool.setuptools]
 packages = ["model_gateway", "model_gateway.moss_edit_deps"]

@@ -21,7 +21,12 @@ def main():
     for name in ('status','cancel','retry','draft','pause','resume','bump','defer','up','down'):
         p=sub.add_parser(name);p.add_argument('id')
         if name=='retry':p.add_argument('--key',required=True)
+    from . import batch_wait
+    batch_wait.add_arguments(sub.add_parser('wait-batch',help='Wait for the specified submitted tasks'))
     args=parser.parse_args()
+    if args.action=='wait-batch':
+        batch_wait.run(args,parser)
+        return
     if args.action=='serve':
         if sys.platform!='darwin':parser.error('首期仅支持 macOS；Windows/Linux 尚不支持')
         os.environ['MEDIA_EXECUTION_ENABLED']='1' if args.execute else '0'

@@ -90,3 +90,17 @@ Codex 使用 `--resume-agent codex`，可选 `--resume-model` 指定账户支持
 DSH 恢复时使用目标 headless profile 的本机权限配置。同一个会话若仍被桌面窗口或其他进程持有写入锁，DSH 可能拒绝恢复。先结束当前轮次；若锁仍在，释放会话占用后核对日志。Codex 恢复使用只读沙箱和非交互审批，适合检查结果。若验收要求修改文件或写入外部系统，应在常规会话中按原授权执行。后台进程以当前 OS 用户身份运行，无法替其他账户恢复会话。
 
 每批使用独立的日志和 receipt 路径。重跑时沿用原 receipt，已投递批次会跳过重复续跑。日志可能含产物链接或模型回复，请留在本机。若进程在投递途中退出或 CLI 返回错误，先核对会话和日志；`sending` 表示送达待确认。后台进程可跨提交命令退出运行，机器重启或执行环境主动清理进程后，可用原参数和 receipt 重新启动。
+
+### DSH Web 日常会话
+
+对于由 DSH Web 托管的聊天，使用 `--resume-agent dsh-web`。该模式用 Web 的 `session/prompt` 排队，由原 Web 进程启动验收轮次。会话保持打开即可。CLI 的 `dsh` 模式适用于 headless 会话。
+
+```sh
+python3 batch_wait.py --url http://mac-host.lan:8777 "$TASK_ID" \
+  --detach --log "$LOG_PATH" --receipt "$RECEIPT_PATH" \
+  --resume-agent dsh-web --dsh-web-url "$DSH_WEB_URL"
+```
+
+未显式指定 `--session-id` 时，等待器从 `DSH_SESSION_ID` 读取当前会话。DSH Web 使用自身的访问规则。需要浏览器凭据的部署可由操作者显式提供 `DSH_WEB_COOKIE`，该值只发送给所配置的 DSH Web 服务。Web 回执确认消息已入队，最终验收结果请查看原聊天。
+
+可将 [Local Model Station 技能](../skills/local-model-station/SKILL.md) 安装到 DSH 的技能目录，使其能从简短的提交和验收指令执行完整流程。

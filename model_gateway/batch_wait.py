@@ -8,9 +8,10 @@ import re
 import subprocess
 import sys
 import time
+from urllib.parse import urlsplit
 from urllib.error import HTTPError, URLError
 from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
-from uuid import UUID
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 TERMINAL = {"succeeded", "failed", "cancelled", "interrupted"}
 
@@ -73,7 +74,40 @@ def resume_command(agent, session, model=None):
     raise ValueError("会话 ID 与所选客户端不匹配")
 
 
-def resume_once(command, receipt, batch, cwd=None):
+def web_target(url, session):
+    parts = urlsplit(url)
+    if (parts.scheme not in {"http", "https"} or not parts.hostname
+            or parts.username or parts.password or parts.query or parts.fragment):
+        raise ValueError("DSH Web URL 必须是可信的 HTTP(S) 服务地址")
+    if not re.fullmatch(r"session-[a-f0-9-]{36}", session):
+        raise ValueError("DSH 会话 ID 无效")
+    return [url.rstrip("/"), session]
+
+
+def deliver_web(target, message, request_id):
+    base, session = target
+    rpc_id = str(uuid4())
+    parts = urlsplit(base)
+    headers = {"Content-Type": "application/json", "Origin": f"{parts.scheme}://{parts.netloc}"}
+    if os.environ.get("DSH_WEB_COOKIE"):
+        headers["Cookie"] = os.environ["DSH_WEB_COOKIE"]
+    payload = {
+        "type": "client-request", "rpcId": rpc_id, "method": "session/prompt",
+        "payload": {"args": {"request": {
+            "requestId": request_id, "sessionId": session, "mode": "queue",
+            "content": [{"type": "text", "text": message}],
+        }}},
+    }
+    request = Request(base + "/api/session/prompt", data=json.dumps(payload).encode(), headers=headers)
+    with build_opener(ProxyHandler({}), NoRedirect()).open(request, timeout=20) as response:
+        body = json.load(response)
+    result = body.get("result") or {}
+    if body.get("rpcId") != rpc_id or not result.get("ok") or (result.get("value") or {}).get("accepted") is not True:
+        error = result.get("error") or {}
+        raise ValueError(f"DSH Web 未确认接收通知（{error.get('code', 'invalid-response')}）")
+
+
+def resume_once(command, receipt, batch, cwd=None, *, web=None):
     import fcntl
 
     receipt = Path(receipt)
@@ -82,6 +116,8 @@ def resume_once(command, receipt, batch, cwd=None):
     with receipt.with_suffix(receipt.suffix + ".lock").open("a") as guard:
         fcntl.flock(guard, fcntl.LOCK_EX)
         signature = {"command": command, "cwd": str(cwd or Path.cwd()), "tasks": sorted(item["task_url"] for item in batch["tasks"])}
+        if web:
+            signature = {"dsh_web": web, "tasks": signature["tasks"]}
         if receipt.exists():
             previous = json.loads(receipt.read_text())
             if previous["batch"] != signature:
@@ -99,7 +135,11 @@ def resume_once(command, receipt, batch, cwd=None):
         message = "Local Model Station：你提交的任务批次已结束。以下 JSON 是结果数据，请按原任务继续处理。\n"
         message += json.dumps(batch, ensure_ascii=False)
         try:
-            subprocess.run(command, input=message, text=True, cwd=cwd, check=True, stdout=sys.stderr, timeout=300)
+            if web:
+                event = str(uuid5(NAMESPACE_URL, json.dumps(signature, sort_keys=True)))
+                deliver_web(web, message, event)
+            else:
+                subprocess.run(command, input=message, text=True, cwd=cwd, check=True, stdout=sys.stderr, timeout=300)
         except FileNotFoundError:
             receipt.unlink(missing_ok=True)
             raise
@@ -110,8 +150,9 @@ def add_arguments(parser):
     parser.add_argument("ids", nargs="+")
     parser.add_argument("--interval", type=float, default=3)
     parser.add_argument("--timeout", type=float, default=21600)
-    parser.add_argument("--resume-agent", choices=("dsh", "codex"))
+    parser.add_argument("--resume-agent", choices=("dsh", "dsh-web", "codex"))
     parser.add_argument("--session-id")
+    parser.add_argument("--dsh-web-url", help="Trusted DSH Web base URL")
     parser.add_argument("--receipt", type=Path)
     parser.add_argument("--session-cwd", type=Path, help="Workspace where the session was created")
     parser.add_argument("--resume-model", help="Optional Codex model override")
@@ -127,7 +168,7 @@ def detach(args):
     for flag, value in (
         ("--resume-agent", args.resume_agent), ("--session-id", args.session_id),
         ("--receipt", args.receipt), ("--session-cwd", args.session_cwd),
-        ("--resume-model", args.resume_model),
+        ("--resume-model", args.resume_model), ("--dsh-web-url", args.dsh_web_url),
     ):
         if value is not None:
             command.extend((flag, str(value)))
@@ -145,6 +186,13 @@ def run(args, parser):
         parser.error("--interval and --timeout must be positive finite numbers")
     if any(not re.fullmatch(r"[a-f0-9]{32}", task_id) for task_id in args.ids):
         parser.error("task IDs must be 32 lowercase hexadecimal characters")
+    if args.resume_agent == "dsh-web":
+        args.session_id = args.session_id or os.environ.get("DSH_SESSION_ID")
+        args.dsh_web_url = args.dsh_web_url or os.environ.get("DSH_WEB_URL")
+        if not args.dsh_web_url:
+            parser.error("--resume-agent dsh-web requires --dsh-web-url or DSH_WEB_URL")
+    elif args.dsh_web_url:
+        parser.error("--dsh-web-url requires --resume-agent dsh-web")
     resume = (args.resume_agent, args.session_id, args.receipt)
     if any(resume) and not all(resume):
         parser.error("--resume-agent, --session-id and --receipt must be specified together")
@@ -157,15 +205,16 @@ def run(args, parser):
     if os.name != "posix" and (args.detach or args.resume_agent):
         parser.error("background mode and session resumption require macOS or Linux")
     try:
-        command = resume_command(args.resume_agent, args.session_id, args.resume_model) if all(resume) else None
+        web = web_target(args.dsh_web_url, args.session_id) if args.resume_agent == "dsh-web" else None
+        command = resume_command(args.resume_agent, args.session_id, args.resume_model) if all(resume) and not web else None
         if args.detach:
             print(json.dumps(detach(args), ensure_ascii=False))
             return
         batch = wait_batch(args.url, args.ids, args.interval, args.timeout)
         print(json.dumps(batch, ensure_ascii=False, indent=2), flush=True)
-        if command:
+        if command or web:
             cwd = args.session_cwd.expanduser().resolve() if args.session_cwd else None
-            resume_once(command, args.receipt.expanduser(), batch, cwd)
+            resume_once(command, args.receipt.expanduser(), batch, cwd, web=web)
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         parser.exit(1, f"wait-batch: {exc}\n")
 

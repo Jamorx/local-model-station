@@ -43,15 +43,17 @@ Example callback body:
 
 **The problem:** a high-quality LLM and an image or video model may not fit in memory at the same time. On a 96 GiB Apple Silicon Mac, suppose the planning model leaves 12 GiB available. The included MiniMax H3 video profile requires 13 GiB and the FLUX.3 image profile requires 28 GiB of available memory, so both wait. The 12 GiB figure is illustrative; 13 and 28 GiB are configured start thresholds.
 
-**The workflow:** DSH plans eight shots for a 60-second film, submits the video candidates, registers a callback, and ends the turn. The text engine can unload the LLM according to its idle policy. Once enough memory is available, Local Model Station starts the video jobs. The batch callback wakes the original DSH session, which can reload the LLM on demand and review the clips.
+**The workflow:** DSH plans eight shots for a 60-second film, submits the video candidates, registers a callback, and ends the turn. In oMLX, open the model settings for the LLM used by DSH and set its idle TTL (`ttl_seconds`) to **180 seconds**. oMLX unloads that LLM after three idle minutes and releases its memory. Once enough memory is available, Local Model Station starts the video jobs. The batch callback wakes the original DSH session, which can reload the LLM on demand and review the clips.
 
 For example, six shots pass and two have actions that diverge from the storyboard. DSH keeps the six approved clips, adjusts the prompts or reference assets for the other two, and submits just those shots again. The next callback starts another review. Planning and review use the LLM, and the video engine uses the same Mac's memory during generation.
+
+Reproduce the setup and review loop with the [video walkthrough (Chinese)](docs/QUICKSTART.md#进阶复现ai-视频自动化抽卡).
 
 ![Three-lane workflow: the user requests a film, DSH reviews candidates, and Local Model Station regenerates only the shots that need revision](docs/images/video-candidate-loop.png)
 
 ## Quick start
 
-Follow the [first TTS callback tutorial (Chinese)](docs/FIRST-TTS-CALLBACK.md) to generate a WAV and resume the original DSH Web session.
+The [standalone quick start (Chinese)](docs/QUICKSTART.md) covers setup, the first TTS callback, and the video review loop.
 
 You need macOS on Apple Silicon, Python 3.12+, and FFmpeg for media workflows.
 

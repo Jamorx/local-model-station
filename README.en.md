@@ -16,6 +16,18 @@ Local Model Station turns an Apple Silicon Mac into a LAN job server for image, 
 - Search and download Hugging Face models, resume partial downloads, and switch between HF Mirror and the official Hugging Face host.
 - Observe Splash readiness, token metrics, and recent request logs. Optional OpenAI-compatible text forwarding runs separately from the media queue.
 
+## A 60-second short film: generate, review, and revise
+
+**The problem:** a high-quality LLM and an image or video model may not fit in memory at the same time. On a 96 GiB Apple Silicon Mac, suppose the planning model leaves 12 GiB available. The included MiniMax H3 video profile requires 13 GiB and the FLUX.3 image profile requires 28 GiB of available memory, so both wait. The 12 GiB figure is illustrative; 13 and 28 GiB are configured start thresholds.
+
+**The workflow:** DSH plans eight shots for a 60-second film, submits the video candidates, registers a callback, and ends the turn. In oMLX, open the model settings for the LLM used by DSH and set its idle TTL (`ttl_seconds`) to **180 seconds**. oMLX unloads that LLM after three idle minutes and releases its memory. Once enough memory is available, Local Model Station starts the video jobs. The batch callback wakes the original DSH session, which can reload the LLM on demand and review the clips.
+
+For example, six shots pass and two have actions that diverge from the storyboard. DSH keeps the six approved clips, adjusts the prompts or reference assets for the other two, and submits just those shots again. The next callback starts another review. Planning and review use the LLM, and the video engine uses the same Mac's memory during generation.
+
+Reproduce the setup and review loop with the [video walkthrough (Chinese)](docs/QUICKSTART.md#进阶复现ai-视频自动化抽卡).
+
+![Three-lane workflow: the user requests a film, DSH reviews candidates, and Local Model Station regenerates only the shots that need revision](docs/images/video-candidate-loop.png)
+
 ## Batch completion callbacks
 
 A DSH Web or local Codex session can submit tasks, register a callback, and finish its current turn. Local Model Station waits until the specified batch reaches terminal states, then delivers artifact links and failure summaries to the original session. While waiting, the text model can unload according to its inference engine's idle policy.
@@ -38,18 +50,6 @@ Example callback body:
 ```
 
 `dsh-web` queues a message through the configured DSH Web instance. `codex` resumes a session available to the account running the gateway, using the local Codex CLI. A remote DSH Web instance works when it and the gateway can reach each other. For sessions that cannot be reached from the gateway, the optional client-side waiter can run on the submitting device. Callback delivery and artifact review have separate outcomes. [Callback setup and access control](docs/API.md#服务端批次回调)
-
-## A 60-second short film: generate, review, and revise
-
-**The problem:** a high-quality LLM and an image or video model may not fit in memory at the same time. On a 96 GiB Apple Silicon Mac, suppose the planning model leaves 12 GiB available. The included MiniMax H3 video profile requires 13 GiB and the FLUX.3 image profile requires 28 GiB of available memory, so both wait. The 12 GiB figure is illustrative; 13 and 28 GiB are configured start thresholds.
-
-**The workflow:** DSH plans eight shots for a 60-second film, submits the video candidates, registers a callback, and ends the turn. In oMLX, open the model settings for the LLM used by DSH and set its idle TTL (`ttl_seconds`) to **180 seconds**. oMLX unloads that LLM after three idle minutes and releases its memory. Once enough memory is available, Local Model Station starts the video jobs. The batch callback wakes the original DSH session, which can reload the LLM on demand and review the clips.
-
-For example, six shots pass and two have actions that diverge from the storyboard. DSH keeps the six approved clips, adjusts the prompts or reference assets for the other two, and submits just those shots again. The next callback starts another review. Planning and review use the LLM, and the video engine uses the same Mac's memory during generation.
-
-Reproduce the setup and review loop with the [video walkthrough (Chinese)](docs/QUICKSTART.md#进阶复现ai-视频自动化抽卡).
-
-![Three-lane workflow: the user requests a film, DSH reviews candidates, and Local Model Station regenerates only the shots that need revision](docs/images/video-candidate-loop.png)
 
 ## Quick start
 

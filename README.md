@@ -20,15 +20,26 @@
 2. **登记**。调用 `POST /api/v1/callbacks`，传入 `task_ids`、`target` 和原会话的 `session_id`。回调登记持久化。同一批任务对同一个目标会话重复登记会返回同一个通知 ID。
 3. **验收**。全部任务到达终态后，8777 一次性投递每项任务的状态、产物链接和失败摘要。DSH Web 把消息排入原聊天，Codex 由本机 CLI 恢复原会话。代理可以依照提交时的要求检查产物、报告失败项并继续后续工作。
 
-```json
-{
-  "task_ids": ["<任务 ID 1>", "<任务 ID 2>"],
-  "target": "dsh-web",
-  "session_id": "<原会话 ID>"
-}
+### 回调接口
+
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| `POST` | `/api/v1/callbacks` | 登记一批任务完成后需要唤醒的会话，返回 `202` 和回调 ID |
+| `GET` | `/api/v1/callbacks/{id}` | 查询回调状态及关联的任务 ID |
+
+以下示例在 8777 所在主机运行。`TASK_ID` 是已提交的任务 ID，`DSH_SESSION_ID` 是当前 DSH Web 会话 ID。
+
+```bash
+curl -fsS http://127.0.0.1:8777/api/v1/callbacks \
+  -H 'Content-Type: application/json' \
+  -d "{\"task_ids\":[\"$TASK_ID\"],\"target\":\"dsh-web\",\"session_id\":\"$DSH_SESSION_ID\"}"
+
+curl -fsS "http://127.0.0.1:8777/api/v1/callbacks/$CALLBACK_ID"
 ```
 
-目标支持 `dsh-web` 和 `codex`。可用 `GET /api/v1/callbacks/{id}` 查询投递状态。**回调送达与产物验收是两个状态**，例如 DSH Web 接收消息后，原会话还需执行验收。若 Codex 会话存放在另一台设备，可选用独立等待器。[配置与回调 API](docs/API.md#服务端批次回调)
+第一个请求返回的 `id` 用于第二个请求的 `CALLBACK_ID`。本机 Codex 使用 `target: codex` 和 Codex 会话 UUID。局域网登记与查询需要 `X-DSH-Callback-Key`，若启用了 API 鉴权还需 Bearer 密钥。
+
+**回调送达与产物验收是两个状态**。例如 DSH Web 接收消息后，原会话还需执行验收。若 Codex 会话存放在另一台设备，可选用独立等待器。[配置与回调 API](docs/API.md#服务端批次回调)
 
 在已配置 DSH skill 的会话里，可以直接说：
 

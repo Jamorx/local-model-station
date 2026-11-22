@@ -161,11 +161,38 @@ class Callbacks:
                     self.folder(task_id)
                 self.directory.mkdir(mode=0o700, exist_ok=True)
                 path = self.directory / f"{identifier}.json"
-                if not path.exists():
-                    write(path, {"id": identifier, "status": "pending", "task_ids": task_ids,
-                                 "target": target, "agent": body.target, "result_base": result_base})
-                status = json.loads(path.read_text())["status"]
-            return {"id": identifier, "status": status}
+                if path.exists():
+                    record = json.loads(path.read_text())
+                    return {"id": identifier, "status": record["status"]}
+
+                pending = None
+                for candidate in self.directory.glob("*.json"):
+                    record = json.loads(candidate.read_text())
+                    if record.get("agent", "dsh-web") != body.target:
+                        continue
+                    session_id = record.get("session_id")
+                    if session_id is None:
+                        if record["target"] != target:
+                            continue
+                    elif session_id != body.session_id:
+                        continue
+                    if identifier in record.get("registrations", []):
+                        return {"id": record["id"], "status": record["status"]}
+                    if record["status"] == "pending":
+                        pending = (candidate, record)
+
+                if pending is not None:
+                    candidate, record = pending
+                    record["task_ids"] = sorted(set(record["task_ids"]).union(task_ids))
+                    record["session_id"] = body.session_id
+                    record.setdefault("registrations", []).append(identifier)
+                    write(candidate, record)
+                    return {"id": record["id"], "status": "pending"}
+
+                write(path, {"id": identifier, "status": "pending", "task_ids": task_ids,
+                             "target": target, "agent": body.target, "session_id": body.session_id,
+                             "result_base": result_base})
+            return {"id": identifier, "status": "pending"}
 
         @api.get("/{id}", dependencies=[Depends(authorize_callback)])
         def status(id: str):

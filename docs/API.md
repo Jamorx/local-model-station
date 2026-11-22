@@ -72,7 +72,7 @@ HTTP 202 只代表接收，不代表模型成功运行。内存不足会等待�
 只配置可信的 DSH Web 地址。配置文件由部署者管理。若该 DSH Web 需要 Cookie，可通过 8777 进程环境变量 `DSH_WEB_COOKIE` 提供。8777 的回调登记与查询默认只允许回环来源。如果提交设备在局域网另一台机器上，部署者设置 `MEDIA_DSH_CALLBACK_KEY`，客户端附上 `X-DSH-Callback-Key`。设置了 `MEDIA_API_KEY` 时仍需常规 Bearer 鉴权。
 
 1. 通过 `POST /api/v1/tasks` 提交任务并记录任务 ID。
-2. 调用 `POST /api/v1/callbacks`，传入 `{"target":"dsh-web","task_ids":["<任务 ID>"],"session_id":"<当前 DSH_SESSION_ID>"}`。同批任务与同一会话重复登记会返回同一通知 ID。
+2. 调用 `POST /api/v1/callbacks`，传入 `{"target":"dsh-web","task_ids":["<任务 ID>"],"session_id":"<当前 DSH_SESSION_ID>"}`。同一回调目标类型和会话 ID 的待发送登记会合并任务并返回同一个通知 ID。合并后的任务全部结束后投递一次。若前一份回调已经开始发送，新任务可以另开一轮。重复提交同一份登记仍返回原通知 ID。
 3. 收到 202 后即可结束当前轮次。任务全部到达终态后，8777 将状态、错误摘要和产物链接排入 DSH Web 原会话。
 4. `GET /api/v1/callbacks/{id}` 查询登记状态。`delivered` 对 DSH Web 表示消息已被接收，对 Codex 表示 CLI 成功完成续跑。若投递超时、收到错误或服务在投递中重启，显示 `uncertain`，先核对原聊天，服务不会自动再开一轮。
 

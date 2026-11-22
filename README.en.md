@@ -41,6 +41,8 @@ A DSH Web or local Codex session can submit tasks, register a callback, and fini
 | `POST /api/v1/tasks` | Submit a Gateway Task v1 job and return its ID |
 | `POST /api/v1/callbacks` | Register a batch and its destination session |
 | `GET /api/v1/callbacks/{id}` | Check notification delivery |
+
+Registrations for the same target type and session merge while a callback is pending. The merged tasks produce one notification when all reach terminal states. New tasks registered after delivery has started can form a new batch. Retrying the same registration returns its original callback ID.
 | `GET /api/v1/tasks/{id}/artifacts/{index}` | Download a completed artifact |
 
 Example callback body:

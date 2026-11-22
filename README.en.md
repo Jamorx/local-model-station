@@ -4,7 +4,7 @@
 
 ![Local Model Station workflow: phones and other LAN clients submit jobs, a Mac schedules and runs them, and a completion callback reaches the original session](docs/images/local-model-station-hero.png)
 
-Local Model Station turns an Apple Silicon Mac into a LAN job server for image, video, and audio generation. It manages jobs and model outputs, schedules jobs according to available memory, and delivers batch completion callbacks. It also manages model downloads and provides a Splash dashboard. The default port is **8777**.
+Local Model Station turns an Apple Silicon Mac into a LAN job server for image, video, and audio generation. It provides job management, memory-aware queue management, and batch completion callbacks. It also manages model downloads and provides a Splash dashboard. The default port is **8777**.
 
 **Status:** 0.1 development release for macOS on Apple Silicon. Install inference engines and model weights separately.
 
@@ -13,9 +13,8 @@ The [standalone quick start (Chinese)](docs/QUICKSTART.md) covers setup, the fir
 ## What it does
 
 - Open the web console from a phone or computer on the same LAN to submit jobs, check progress, and download outputs. The HTTP API and CLI are also available.
-- Run one media job at a time. Each model profile declares a minimum amount of available system memory. Jobs that cannot fit stay queued while eligible jobs can run.
-- **Job management.** Pause dispatch, reorder queued jobs, cancel or retry tasks, and check execution status and logs.
-- **Model output management.** Inspect each task’s prompt, parameters, and reference assets. Reuse existing assets when editing and resubmitting a past task. View or download artifacts by task.
+- **Job management.** Submit, cancel, or retry jobs. Inspect each job’s prompt, parameters, reference assets, status, and logs. View or download outputs and reuse existing assets when editing and resubmitting a job.
+- **Queue management.** Reorder pending jobs and enable or pause dispatch. The queue runs one media job at a time, starting eligible jobs when available memory meets their model profile’s threshold.
 - Search and download Hugging Face models, resume partial downloads, and switch between HF Mirror and the official Hugging Face host.
 - Observe Splash readiness, token metrics, and recent request logs. Optional OpenAI-compatible text forwarding runs separately from the media queue.
 

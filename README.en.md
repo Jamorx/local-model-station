@@ -2,7 +2,7 @@
 
 [简体中文](README.md) · English
 
-![Local Model Station workflow: LAN clients submit jobs, a Mac schedules and runs them, and a completion callback reaches the original session](docs/images/local-model-station-hero.png)
+![Local Model Station workflow: phones and other LAN clients submit jobs, a Mac schedules and runs them, and a completion callback reaches the original session](docs/images/local-model-station-hero.png)
 
 Local Model Station turns an Apple Silicon Mac into a LAN job server for image, video, and audio generation. It schedules durable tasks according to available memory, supports batch completion callbacks, manages model downloads, and provides a Splash dashboard. The default port is **8777**.
 
@@ -10,7 +10,7 @@ Local Model Station turns an Apple Silicon Mac into a LAN job server for image, 
 
 ## What it does
 
-- Submit and monitor tasks from another device on your LAN, through the web console, HTTP API, or CLI.
+- Open the web console from a phone or computer on the same LAN to submit jobs, check progress, and download outputs. The HTTP API and CLI are also available.
 - Run one media job at a time. Each model profile declares a minimum amount of available system memory. Jobs that cannot fit stay queued while eligible jobs can run.
 - Pause dispatch, reorder queued jobs, cancel or retry tasks, review logs, and download artifacts.
 - Search and download Hugging Face models, resume partial downloads, and switch between HF Mirror and the official Hugging Face host.

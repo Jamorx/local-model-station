@@ -41,9 +41,11 @@ Example callback body:
 
 ## A 60-second short film: generate, review, and revise
 
-DSH breaks the film into eight shots and submits several candidates for each. Local Model Station generates the batch and calls back to the original session. DSH locks approved clips, revises only the shots with no usable candidate, and repeats the loop before editing the film.
+**The problem:** a high-quality LLM and an image or video model may not fit in memory at the same time. On a 96 GiB Apple Silicon Mac, suppose the planning model leaves 12 GiB available. The included MiniMax H3 video profile requires 13 GiB and the FLUX.3 image profile requires 28 GiB of available memory, so both wait. The 12 GiB figure is illustrative; 13 and 28 GiB are configured start thresholds.
 
-After the submission turn ends, the text inference engine can unload its model according to its idle policy, freeing memory for video generation. The review turn can load it again on demand.
+**The workflow:** DSH plans eight shots for a 60-second film, submits the video candidates, registers a callback, and ends the turn. The text engine can unload the LLM according to its idle policy. Once enough memory is available, Local Model Station starts the video jobs. The batch callback wakes the original DSH session, which can reload the LLM on demand and review the clips.
+
+For example, six shots pass and two have actions that diverge from the storyboard. DSH keeps the six approved clips, adjusts the prompts or reference assets for the other two, and submits just those shots again. The next callback starts another review. Planning and review use the LLM, and the video engine uses the same Mac's memory during generation.
 
 ![Three-lane workflow: the user requests a film, DSH reviews candidates, and Local Model Station regenerates only the shots that need revision](docs/images/video-candidate-loop.png)
 

@@ -10,12 +10,19 @@
 <div class="help-content">
 <a href="/">← 返回控制台</a>
 <h1>接口与文档</h1>
-<p>查阅任务提交、模型列表、队列控制和下载接口。</p>
+<p>查阅任务提交、队列控制、模型下载与批次完成通知。</p>
 <div class="help-links">
 <a class="card model-card" href="/docs"><strong>交互式 API</strong><span>查看参数并试调接口</span></a>
 <a class="card model-card" href="/api/help.md"><strong>调用协议</strong><span>阅读认证、任务和结果格式</span></a>
 <a class="card model-card" href="/openapi.json"><strong>OpenAPI Schema</strong><span>为客户端生成类型与调用代码</span></a>
 </div>
+<section class="card model-card splash-panel" id="batch-completion" aria-labelledby="batch-title">
+<h2 id="batch-title">DSH 和 Codex 批次完成通知</h2>
+<p>在提交任务的设备下载并运行等待器。它会等指定任务全部结束，再汇总产物和失败信息。可后台恢复原会话，等待期间不调用模型。</p>
+<p><a href="/api/v1/clients/batch_wait.py">下载 batch_wait.py</a> · <a href="/api/help.md">查看后台运行、会话权限与接入示例</a></p>
+<pre><code>python3 batch_wait.py --url http://mac-host.lan:8777 "$TASK_ID_1" "$TASK_ID_2"</code></pre>
+<p>恢复原会话需要本机已安装对应的 DSH 或 Codex CLI，并能访问原会话和工作目录。</p>
+</section>
 </div>
 </body>
 </html>

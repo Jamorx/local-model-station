@@ -334,7 +334,10 @@ async def lifespan(app):
   closing.set();wake.set()
   if t:t.join(timeout=15)
   fcntl.flock(guard.fileno(),fcntl.LOCK_UN);guard.close()
-app=FastAPI(title='Local Model Station',version='0.1.0',lifespan=lifespan)
+app=FastAPI(
+ title='Local Model Station',version='0.1.0',lifespan=lifespan,
+ description='任务与模型 API。批次完成后，提交设备可使用 [DSH / Codex 等待器](/api/help#batch-completion) 恢复会话。',
+)
 app.include_router(download_router([Depends(authorize)]))
 app.mount('/assets/tabulator-6.6.1',StaticFiles(directory=ROOT/'assets/tabulator'),name='tabulator')
 app.mount('/assets/bootstrap-5.3.9',StaticFiles(directory=ROOT/'assets/bootstrap'),name='bootstrap')
@@ -351,6 +354,12 @@ def manage_page():return HTMLResponse(content=(ROOT/'studio.html').read_text(),h
 def help_page():return HTMLResponse(content=(ROOT/'help.html').read_text(),headers=NO_STORE)
 @app.get('/api/help.md',response_class=PlainTextResponse)
 def help_md():return (ROOT.parent/'docs/API.md').read_text()
+@app.get('/api/v1/clients/batch_wait.py',tags=['Client tools'],response_class=FileResponse,
+         summary='下载 DSH / Codex 批次等待脚本')
+def batch_wait_client():
+ """下载仅依赖 Python 标准库的客户端。使用方式见 /api/help。"""
+ return FileResponse(ROOT/'batch_wait.py',media_type='text/x-python',
+                     filename='batch_wait.py',headers=NO_STORE)
 @app.get('/health')
 def health():return {'status':'ok','version':'0.1.0','platform':sys.platform,'service_id':SERVICE_ID,'execution_enabled':EXECUTION_ENABLED,'queue_paused':queue_paused,'task_store':'isolated','active_job':active[0] if active else None,'queue_concurrency':1,'offline':True,'offline_scope':'builtin HF environment flags; custom scripts are trusted operator code','memory_percent':psutil.virtual_memory().percent,'swap_used_gib':round(psutil.swap_memory().used/2**30,1),'total_gib':round(psutil.virtual_memory().total/2**30,1),'available_gib':round(psutil.virtual_memory().available/2**30,1),'queue_wait_timeout_s':QUEUE_WAIT_TIMEOUT_S}
 @app.get('/api/v1/engines/splash',tags=['Engine status'],dependencies=[Depends(authorize)])

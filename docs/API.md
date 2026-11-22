@@ -67,9 +67,10 @@ HTTP 202 只代表接收，不代表模型成功运行。内存不足会等待�
 
 ### 在提交设备安装
 
-有 Python 3 的设备可以把 [batch_wait.py](../model_gateway/batch_wait.py) 保存到本机，直接运行。该文件仅用 Python 标准库。请从信任的仓库版本下载。已安装本项目的设备也可用 `lmg-batch` 或 `lmg wait-batch`。等待可前台运行，后台启动和恢复会话支持 macOS／Linux。
+有 Python 3 的设备可从 8777 的 `GET /api/v1/clients/batch_wait.py` 下载客户端，也可使用仓库中的 [batch_wait.py](../model_gateway/batch_wait.py)。部署地址替换为执行端 Mac 的实际局域网地址。该文件仅用 Python 标准库。请从信任的仓库版本下载。已安装本项目的设备也可用 `lmg-batch` 或 `lmg wait-batch`。等待可前台运行，后台启动和恢复会话支持 macOS／Linux。
 
 ```sh
+curl -fSLo batch_wait.py http://mac-host.lan:8777/api/v1/clients/batch_wait.py
 python3 batch_wait.py --url http://mac-host.lan:8777 "$TASK_ID_1" "$TASK_ID_2"
 ```
 

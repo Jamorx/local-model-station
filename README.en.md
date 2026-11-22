@@ -8,6 +8,8 @@ Local Model Station turns an Apple Silicon Mac into a LAN job server for image, 
 
 **Status:** 0.1 development release for macOS on Apple Silicon. Install inference engines and model weights separately.
 
+The [standalone quick start (Chinese)](docs/QUICKSTART.md) covers setup, the first TTS callback, and the video review loop.
+
 ## What it does
 
 - Open the web console from a phone or computer on the same LAN to submit jobs, check progress, and download outputs. The HTTP API and CLI are also available.
@@ -52,8 +54,6 @@ Example callback body:
 `dsh-web` queues a message through the configured DSH Web instance. `codex` resumes a session available to the account running the gateway, using the local Codex CLI. A remote DSH Web instance works when it and the gateway can reach each other. For sessions that cannot be reached from the gateway, the optional client-side waiter can run on the submitting device. Callback delivery and artifact review have separate outcomes. [Callback setup and access control](docs/API.md#服务端批次回调)
 
 ## Quick start
-
-The [standalone quick start (Chinese)](docs/QUICKSTART.md) covers setup, the first TTS callback, and the video review loop.
 
 You need macOS on Apple Silicon, Python 3.12+, and FFmpeg for media workflows.
 

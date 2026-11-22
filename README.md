@@ -8,6 +8,8 @@
 
 **首期仅支持 macOS。** 本地 MLX / Metal / MPS 生成主要面向 Apple Silicon；Intel Mac、Windows、Linux 暂不在支持范围。当前为 0.1 开发版，项目自有代码按 Apache-2.0 发布。推理引擎和模型权重需自行安装。
 
+[快速开始](docs/QUICKSTART.md)包含安装、首条任务、回调验收和视频抽卡复现步骤。
+
 ## 功能
 
 - 通过 Web 控制台或 API 排队、暂停和重试任务，查看日志并下载产物。
@@ -124,8 +126,6 @@ python3 batch_wait.py --url http://192.168.1.50:8777 "$TASK_ID_1" "$TASK_ID_2" \
 设置 `MEDIA_API_KEY` 后，任务接口使用 `Authorization: Bearer <key>`。绑定局域网地址的完整工作台适用于受信任的网络。
 
 ## 从源码运行
-
-[快速开始](docs/QUICKSTART.md)包含安装、首条任务、回调验收和视频抽卡复现步骤。
 
 需要 macOS、Python 3.12、FFmpeg，以及单独安装的模型权重和引擎。Python 发行包名为 `local-model-gateway`，CLI 为 `lmg`。API 环境与推理环境可分开；安装 API 依赖不会下载模型。首期使用源码 / editable 安装，尚未发布 wheel 或 Homebrew 包。
 

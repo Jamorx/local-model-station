@@ -323,3 +323,5 @@ nav.nav .btn.active { border-color: transparent; }
 .callback-record time{color:var(--bs-secondary-color)}
 .callback-record .muted{margin:8px 0}
 .callback-tasks{display:flex;flex-wrap:wrap;gap:8px}
+
+.callback-tasks button{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}

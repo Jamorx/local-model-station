@@ -70,7 +70,7 @@ function renderTable(){const list=filtered();selected=new Set([...selected].filt
  const selectable=list.filter(j=>['queued','running','paused'].includes(j.status));$('select-all').checked=!!selectable.length&&selectable.every(j=>selected.has(j.id));$('select-all').indeterminate=selectable.some(j=>selected.has(j.id))&&!$('select-all').checked;
  for(const action of ['pause','resume','cancel','bump','defer'])$('bulk-'+action).disabled=![...selected].some(id=>{const j=jobs.find(j=>j.id===id);return j?.controls?.[['bump','defer'].includes(action)?'reorder':action]});
 }
-async function refresh(){if(busy)return;const revision=queueRevision;busy=true;$('refresh').disabled=true;try{const [h,m,j,q]=await Promise.all(['/health','/api/models','/api/jobs','/api/queue'].map(async p=>(await api(p)).json()));health=h;if(!queueChanging&&revision===queueRevision)queueState=q;models=m.data;jobs=j.data.sort((a,b)=>b.created_at-a.created_at);lastSync=new Date();$('updated').textContent='更新于 '+lastSync.toLocaleTimeString('zh-CN',{hour12:false});queueConnected=true;render()}catch(e){queueConnected=false;renderQueue();$('updated').textContent=lastSync?'数据可能过期 · '+lastSync.toLocaleTimeString():'尚未获取数据';}finally{busy=false;$('refresh').disabled=false}}
+async function refresh(){if(busy)return;const revision=queueRevision;busy=true;$('refresh').disabled=true;try{const [h,m,j,q]=await Promise.all(['/health','/api/models','/api/jobs','/api/queue'].map(async p=>(await api(p)).json()));health=h;if(!queueChanging&&revision===queueRevision)queueState=q;models=m.data;jobs=j.data.sort((a,b)=>b.created_at-a.created_at);lastSync=new Date();$('updated').textContent='更新于 '+lastSync.toLocaleTimeString('zh-CN',{hour12:false});queueConnected=true;render();renderCallbackTaskStatuses()}catch(e){queueConnected=false;renderQueue();$('updated').textContent=lastSync?'数据可能过期 · '+lastSync.toLocaleTimeString():'尚未获取数据';}finally{busy=false;$('refresh').disabled=false}}
 function modelOptions(id){const kind=$('form-kind').value;$('form-model').innerHTML=models.filter(m=>m.kind===kind).map(m=>`<option value="${m.id}" ${m.available?'':'disabled'}>${esc(m.name)} · ${esc(engineLabel(m.engine))} · ${esc(m.id)}${m.available?'':'（依赖缺失）'}</option>`).join('');if(id&&models.some(m=>m.id===id&&m.kind===kind))$('form-model').value=id;else if(kind==='image'&&models.some(m=>m.id==='zimage'))$('form-model').value='zimage';updateModel()}
 let editDraft=null, editAssets=[];
 const roleLabels={first_frame:'首帧',last_frame:'尾帧',input_image:'输入图片',edit_image:'编辑参考图',reference_image:'参考图片',reference_audio:'参考音频',audio_condition:'音频条件',reference_video:'参考视频',draft:'底片视频'};
@@ -213,6 +213,15 @@ for(const id of ['search','status-filter','kind-filter','sort-order'])$(id).addE
 let callbacksLoading=false, callbackSignature=null;
 const callbackLabels={pending:'等待任务结束',sending:'发送中',delivered:'已送达',uncertain:'投递待确认'};
 const callbackBadge={pending:'queued',sending:'running',delivered:'succeeded',uncertain:'interrupted'};
+function renderCallbackTaskStatuses(){
+ if(view!=='callbacks')return;
+ const tasksById=new Map(jobs.map(job=>[job.id,job]));
+ for(const target of $('callback-records').querySelectorAll('[data-callback-task-status]')){
+  const job=tasksById.get(target.dataset.callbackTaskStatus);
+  const content=job?badge(job):'<span class="muted">状态不可用</span>';
+  if(target.innerHTML!==content)target.innerHTML=content;
+ }
+}
 async function refreshCallbacks(){
  if(view!=='callbacks'||callbacksLoading)return;
  callbacksLoading=true;
@@ -230,9 +239,10 @@ async function refreshCallbacks(){
     <span>${row.task_ids.length} 个任务</span><time>${esc(date(row.updated_at))}</time></summary>
    <div class="muted">会话 ID <code>${esc(row.session_id||"—")}</code></div>
    <div class="muted">回调 ID <code>${esc(row.id)}</code></div>
-   <div class="callback-tasks">${row.task_ids.map(id=>`<button type="button" class="btn btn-outline-secondary" data-detail="${esc(id)}" title="${esc(id)}">任务 ${esc(id.slice(0,12))}</button>`).join('')}</div>
+   <div class="callback-tasks">${row.task_ids.map(id=>`<button type="button" class="btn btn-outline-secondary" data-detail="${esc(id)}" title="${esc(id)}">任务 ${esc(id.slice(0,12))}<span data-callback-task-status="${esc(id)}"></span></button>`).join('')}</div>
   </details>`).join('');
   callbackSignature=signature;
+  renderCallbackTaskStatuses();
  }catch(error){
   if(view==='callbacks')summary.textContent='回调记录读取失败：'+error.message;
  }finally{callbacksLoading=false}

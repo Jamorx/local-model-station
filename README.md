@@ -15,6 +15,36 @@
 
 DSH Web 会话可向 8777 登记批次回调，结束当前轮次。整批任务完成后，8777 将结果排进原会话。本机 Codex 也可登记服务端回调，异机 Codex 可用独立等待器。等待期间仍可由推理服务按空闲策略卸载模型。[服务端配置与回调 API](docs/API.md#服务端批次回调)
 
+### DSH Web 和 8777 在不同局域网设备
+
+**两边可互访时，无需启动额外进程。** DSH 所在设备提交任务并登记回调，8777 自己等待整批结束，再回投给托管原会话的 DSH Web。浏览器所在设备可以与两者都不同。
+
+1. 在 8777 的任务目录父级配置 `dsh-web.json`。默认路径是 `~/Library/Application Support/LocalModelGateway/dsh-web.json`。例如 8777 位于 `192.168.1.50`，DSH Web 位于 `192.168.1.60`：
+
+   ```json
+   {"url":"http://192.168.1.60:3443","result_base_url":"http://192.168.1.50:8777"}
+   ```
+
+   `url` 是 8777 能访问的 DSH Web 地址，`result_base_url` 是 DSH 能访问的 8777 地址。DSH Web 需要通过自己的配置接受来自 8777 的连接。若实例要求 Cookie，由管理员配置 `DSH_WEB_COOKIE` 到 **8777 服务进程**的环境，使用该实例的正常认证方式。
+
+2. 在 **8777 服务进程**和**提交端**分别配置同一个 `MEDIA_DSH_CALLBACK_KEY`。脚本会用 `X-DSH-Callback-Key` 发送它。若 8777 同时启用了普通 API Bearer 鉴权，提交端也需设置 `MEDIA_API_KEY`。这些值通过本机环境或服务管理器提供。使用不受信任的网络时应通过 HTTPS 或可信内网隧道访问。
+
+3. 提交任务后，从 DSH 当前会话运行 [一次性登记脚本](scripts/register_dsh_callback.py)。它读取 `DSH_SESSION_ID`，也可传入明确的 `--session-id`。拿到回调 ID 后即可结束当前轮次。脚本只做登记，随即退出。
+
+   ```sh
+   python3 scripts/register_dsh_callback.py --url http://192.168.1.50:8777 "$TASK_ID_1" "$TASK_ID_2"
+   ```
+
+**只有反向访问不通时才需要等待进程。** 例如 DSH Web 仅监听本机，且不打算让 8777 连接它，可在 DSH 所在设备运行 [批次等待器](model_gateway/batch_wait.py)。它主动访问 8777，整批完成后再调用本机 DSH Web，等待阶段无需运行模型。
+
+```sh
+python3 batch_wait.py --url http://192.168.1.50:8777 "$TASK_ID_1" "$TASK_ID_2" \
+  --resume-agent dsh-web --dsh-web-url "$LOCAL_DSH_WEB_URL" \
+  --detach --log "$LOG_PATH" --receipt "$RECEIPT_PATH"
+```
+
+当前服务端配置对应一个 DSH Web 目标。异机部署示例供有需要的用户自行验证。
+
 ## 控制台截图
 
 ![工作总览，包含任务队列和本机资源](docs/screenshots/overview.png)

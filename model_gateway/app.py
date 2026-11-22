@@ -5,6 +5,7 @@ import sys
 from model_gateway.registry import Registry
 from model_gateway import download_engine, splash_status
 from model_gateway.dsh_callbacks import Callbacks
+from model_gateway.batch_wait import TERMINAL
 from model_gateway.downloads import router as download_router
 from model_gateway.execution import checked_output
 import psutil
@@ -57,6 +58,7 @@ def folder(id):
 def read(p):return json.loads((p/'job.json').read_text())
 def write(p,d):
  tmp=p/'job.tmp';tmp.write_text(json.dumps(d,ensure_ascii=False,indent=2));tmp.replace(p/'job.json')
+ if d['status'] in TERMINAL:dsh_callbacks.task_finished(d['id'])
 ETA_BASE={'zimage':12,'moss':90,'moss-edit':420,'h3':90,'h3-image':240,'vpipe-2k':110}
 def eta_for(d):
  p=d['parameters'];now=time.time();hist=[]
@@ -336,7 +338,7 @@ async def lifespan(app):
   yield
  finally:
   if downloader:download_engine.stop(downloader)
-  closing.set();wake.set()
+  closing.set();wake.set();dsh_callbacks.wake_workers()
   if t:t.join(timeout=15)
   for callback_worker in callback_workers:callback_worker.join(timeout=21)
   fcntl.flock(guard.fileno(),fcntl.LOCK_UN);guard.close()

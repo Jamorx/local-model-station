@@ -5,6 +5,7 @@ import os
 import secrets
 import subprocess
 from pathlib import Path
+from threading import Condition
 from typing import Annotated, Literal
 from uuid import NAMESPACE_URL, uuid5
 
@@ -12,6 +13,8 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from .batch_wait import TERMINAL, deliver_web, resume_command, web_target
+
+CALLBACK_POLL_SECONDS = 60
 
 TaskId = Annotated[str, Field(pattern=r"^[a-f0-9]{32}$")]
 
@@ -37,6 +40,24 @@ class Callbacks:
         self.folder = folder
         self.task_view = task_view
         self.lock = lock
+        self.changed = Condition()
+        self.finished_tasks = {"dsh-web": set(), "codex": set()}
+        self.registered_paths = {"dsh-web": set(), "codex": set()}
+
+    def task_finished(self, task_id):
+        with self.changed:
+            for tasks in self.finished_tasks.values():
+                tasks.add(task_id)
+            self.changed.notify_all()
+
+    def registration_changed(self, agent, path):
+        with self.changed:
+            self.registered_paths[agent].add(path)
+            self.changed.notify_all()
+
+    def wake_workers(self):
+        with self.changed:
+            self.changed.notify_all()
 
     def config(self, agent):
         path = self.config_path if agent == "dsh-web" else self.config_path.with_name("codex-callback.json")
@@ -57,6 +78,20 @@ class Callbacks:
             raise ValueError("Codex executable is unavailable")
         command[0] = str(executable)
         return {"command": command, "cwd": str(cwd)}
+
+    @staticmethod
+    def session_id(record):
+        if record.get("session_id"):
+            return record["session_id"]
+        target = record.get("target")
+        if record.get("agent", "dsh-web") == "dsh-web":
+            if isinstance(target, list) and len(target) == 2:
+                return target[1]
+        elif isinstance(target, dict):
+            command = target.get("command")
+            if isinstance(command, list) and len(command) >= 2 and command[-1] == "-":
+                return command[-2]
+        return None
 
     def deliver(self, record, message, event, closing):
         if record.get("agent", "dsh-web") == "dsh-web":
@@ -88,10 +123,12 @@ class Callbacks:
                     process.kill()
                     process.communicate()
 
-    def process(self, path, closing, agent):
+    def process(self, path, closing, agent, task_ids=None):
         with self.lock:
             record = json.loads(path.read_text())
             if record.get("agent", "dsh-web") != agent:
+                return
+            if task_ids is not None and task_ids.isdisjoint(record["task_ids"]):
                 return
             if record["status"] == "sending":
                 write(path, {**record, "status": "uncertain"})
@@ -125,15 +162,34 @@ class Callbacks:
         write(path, {**record, "status": "delivered"})
 
     def run(self, closing, agent):
+        scan_all = True
         while not closing.is_set():
-            for path in self.directory.glob("*.json"):
+            with self.changed:
+                if not scan_all:
+                    notified = self.changed.wait_for(
+                        lambda: closing.is_set() or self.finished_tasks[agent] or self.registered_paths[agent],
+                        timeout=CALLBACK_POLL_SECONDS,
+                    )
+                    scan_all = not notified
+                if closing.is_set():
+                    return
+                task_ids = self.finished_tasks[agent]
+                paths = self.registered_paths[agent]
+                self.finished_tasks[agent] = set()
+                self.registered_paths[agent] = set()
+
+            if scan_all or task_ids:
+                candidates = self.directory.glob("*.json")
+            else:
+                candidates = paths
+            for path in candidates:
                 if closing.is_set():
                     return
                 try:
-                    self.process(path, closing, agent)
+                    self.process(path, closing, agent, None if scan_all or path in paths else task_ids)
                 except (OSError, ValueError, HTTPException, KeyError):
                     continue
-            closing.wait(3)
+            scan_all = False
 
     def router(self, authorize):
         api = APIRouter(prefix="/api/v1/callbacks", tags=["Batch notifications"],
@@ -187,12 +243,33 @@ class Callbacks:
                     record["session_id"] = body.session_id
                     record.setdefault("registrations", []).append(identifier)
                     write(candidate, record)
+                    self.registration_changed(body.target, candidate)
                     return {"id": record["id"], "status": "pending"}
 
                 write(path, {"id": identifier, "status": "pending", "task_ids": task_ids,
                              "target": target, "agent": body.target, "session_id": body.session_id,
                              "result_base": result_base})
+                self.registration_changed(body.target, path)
             return {"id": identifier, "status": "pending"}
+
+        @api.get("")
+        def list_callbacks():
+            rows = []
+            for path in self.directory.glob("*.json"):
+                try:
+                    record = json.loads(path.read_text())
+                    rows.append({
+                        "id": record["id"],
+                        "status": record["status"],
+                        "target": record.get("agent", "dsh-web"),
+                        "task_ids": record["task_ids"],
+                        "session_id": self.session_id(record),
+                        "updated_at": path.stat().st_mtime,
+                    })
+                except (OSError, ValueError, KeyError):
+                    continue
+            rows.sort(key=lambda row: (row["status"] not in {"pending", "sending"}, -row["updated_at"]))
+            return {"data": rows[:100], "total": len(rows)}
 
         @api.get("/{id}", dependencies=[Depends(authorize_callback)])
         def status(id: str):

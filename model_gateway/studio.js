@@ -4,6 +4,7 @@ const labels={queued:'排队中',paused:'已暂停',running:'运行中',succeede
 const views={
  overview:['工作总览','查看近期任务和本机的执行资源。'],
  tasks:['任务队列','筛选任务、调整顺序和查看产物。'],
+ callbacks:['任务回调','查看批次投递状态和关联任务。'],
  models:['模型与能力','按类型或引擎查找可用模型。'],
  splash:['Splash 管理','查看模型状态、用量与近期请求。'],
  downloads:['模型下载','搜索仓库，管理下载进度与续传。']
@@ -204,11 +205,38 @@ $('create-form').onsubmit=async e=>{
  await api('/api/v1/tasks',body,submitAttempt.key);submitAttempt=null;$('create-dialog').close();toast('新任务已加入队列，全部输入已保存');showView('tasks',{navigate:true});await refresh();
  }catch(e){$('form-error').textContent=e.message}finally{button.disabled=false;button.textContent='加入队列'}
 };
-document.addEventListener('click',e=>{const v=e.target.closest('[data-view]');if(v){showView(v.dataset.view,{navigate:true});refreshSplash();refreshDownloads()}if(e.target.closest('.new-task'))create();const m=e.target.closest('[data-model]');if(m)create(m.dataset.model);const d=e.target.closest('[data-detail]');if(d)details(d.dataset.detail);const a=e.target.closest('[data-action]');if(a)action(a.dataset.id,a.dataset.action);if(e.target.closest('[data-close]'))e.target.closest('dialog').close()});
+document.addEventListener('click',e=>{const v=e.target.closest('[data-view]');if(v){showView(v.dataset.view,{navigate:true});refreshSplash();refreshDownloads();refreshCallbacks()}if(e.target.closest('.new-task'))create();const m=e.target.closest('[data-model]');if(m)create(m.dataset.model);const d=e.target.closest('[data-detail]');if(d)details(d.dataset.detail);const a=e.target.closest('[data-action]');if(a)action(a.dataset.id,a.dataset.action);if(e.target.closest('[data-close]'))e.target.closest('dialog').close()});
 document.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('.recent-row')){e.preventDefault();details(e.target.dataset.detail)}});
 $('jobs-body').onchange=e=>{if(e.target.dataset.select){e.target.checked?selected.add(e.target.dataset.select):selected.delete(e.target.dataset.select);renderTable()}};$('select-all').onchange=e=>{filtered().filter(j=>['queued','running','paused'].includes(j.status)).forEach(j=>e.target.checked?selected.add(j.id):selected.delete(j.id));renderTable()};$('select-visible').onclick=()=>{filtered().filter(j=>['queued','running','paused'].includes(j.status)).forEach(j=>selected.add(j.id));renderTable()};$('clear-selection').onclick=()=>{selected.clear();renderTable()};
 for(const action of ['pause','resume','cancel','bump','defer'])$('bulk-'+action).onclick=()=>bulk(action);
-for(const id of ['search','status-filter','kind-filter','sort-order'])$(id).addEventListener('input',renderTable);$('refresh').onclick=()=>{refresh();refreshSplash();refreshDownloads()};$('form-kind').onchange=()=>{const size=$('form-kind').value==='video'?768:1024;$('form-width').value=size;$('form-height').value=size;modelOptions();updateEditor()};$('form-model').onchange=updateModel;$('form-prompt').oninput=()=>{try{localStorage.setItem('frame-prompt-draft',$('form-prompt').value)}catch{}};
+for(const id of ['search','status-filter','kind-filter','sort-order'])$(id).addEventListener('input',renderTable);$('refresh').onclick=()=>{refresh();refreshSplash();refreshDownloads();refreshCallbacks()};$('form-kind').onchange=()=>{const size=$('form-kind').value==='video'?768:1024;$('form-width').value=size;$('form-height').value=size;modelOptions();updateEditor()};$('form-model').onchange=updateModel;$('form-prompt').oninput=()=>{try{localStorage.setItem('frame-prompt-draft',$('form-prompt').value)}catch{}};
+let callbacksLoading=false, callbackSignature=null;
+const callbackLabels={pending:'等待任务结束',sending:'发送中',delivered:'已送达',uncertain:'投递待确认'};
+const callbackBadge={pending:'queued',sending:'running',delivered:'succeeded',uncertain:'interrupted'};
+async function refreshCallbacks(){
+ if(view!=='callbacks'||callbacksLoading)return;
+ callbacksLoading=true;
+ const summary=$('callback-summary'), records=$('callback-records');
+ try{
+  const {data,total}=await (await api('/api/v1/callbacks')).json();
+  if(view!=='callbacks')return;
+  summary.textContent=total?`显示 ${data.length} / ${total} 条记录`:'暂无回调记录';
+  const signature=JSON.stringify(data);
+  if(signature===callbackSignature)return;
+  const expanded=new Set([...records.querySelectorAll('details[open]')].map(row=>row.dataset.callbackId));
+  records.innerHTML=data.map(row=>`<details class="callback-record" data-callback-id="${esc(row.id)}"${expanded.has(row.id)?' open':''}>
+   <summary><span class="status ${callbackBadge[row.status]||''}">${esc(callbackLabels[row.status]||row.status)}</span>
+    <strong>${esc(row.target==='dsh-web'?'DSH Web':'Codex')}</strong>
+    <span>${row.task_ids.length} 个任务</span><time>${esc(date(row.updated_at))}</time></summary>
+   <div class="muted">会话 ID <code>${esc(row.session_id||"—")}</code></div>
+   <div class="muted">回调 ID <code>${esc(row.id)}</code></div>
+   <div class="callback-tasks">${row.task_ids.map(id=>`<button type="button" class="btn btn-outline-secondary" data-detail="${esc(id)}" title="${esc(id)}">任务 ${esc(id.slice(0,12))}</button>`).join('')}</div>
+  </details>`).join('');
+  callbackSignature=signature;
+ }catch(error){
+  if(view==='callbacks')summary.textContent='回调记录读取失败：'+error.message;
+ }finally{callbacksLoading=false}
+}
 let splashLoading=false;
 const tokenCount=value=>value==null?'—':Number(value).toLocaleString('zh-CN');
 const tokenRate=value=>value==null?'—':Number(value).toFixed(1);
@@ -381,7 +409,7 @@ $('download-tasks').onclick=async e=>{
  }catch(error){toast(error.message)}
  finally{button.disabled=false}
 };
-window.addEventListener('popstate',()=>{showView(requestedView());refreshSplash();refreshDownloads()});
-showView(view);refresh();refreshSplash();refreshDownloads();setInterval(()=>{if(!document.hidden){refresh();refreshSplash();refreshDownloads()}},5000);
+window.addEventListener('popstate',()=>{showView(requestedView());refreshSplash();refreshDownloads();refreshCallbacks()});
+showView(view);refresh();refreshSplash();refreshDownloads();refreshCallbacks();setInterval(()=>{if(!document.hidden){refresh();refreshSplash();refreshDownloads();refreshCallbacks()}},5000);
 
 function projectLabel(j){return j.execution?`${j.execution.profile.model_id} / ${j.execution.profile.engine}`:'历史任务'}

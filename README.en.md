@@ -39,6 +39,14 @@ Example callback body:
 
 `dsh-web` queues a message through the configured DSH Web instance. `codex` resumes a session available to the account running the gateway, using the local Codex CLI. A remote DSH Web instance works when it and the gateway can reach each other. For sessions that cannot be reached from the gateway, the optional client-side waiter can run on the submitting device. Callback delivery and artifact review have separate outcomes. [Callback setup and access control](docs/API.md#服务端批次回调)
 
+## A 60-second short film: generate, review, and revise
+
+DSH breaks the film into eight shots and submits several candidates for each. Local Model Station generates the batch and calls back to the original session. DSH locks approved clips, revises only the shots with no usable candidate, and repeats the loop before editing the film.
+
+After the submission turn ends, the text inference engine can unload its model according to its idle policy, freeing memory for video generation. The review turn can load it again on demand.
+
+![Three-lane workflow: the user requests a film, DSH reviews candidates, and Local Model Station regenerates only the shots that need revision](docs/images/video-candidate-loop.png)
+
 ## Quick start
 
 You need macOS on Apple Silicon, Python 3.12+, and FFmpeg for media workflows.

@@ -123,6 +123,8 @@ python3 batch_wait.py --url http://192.168.1.50:8777 "$TASK_ID_1" "$TASK_ID_2" \
 
 ## 从源码运行
 
+想先跑通一条语音任务和会话唤醒，可以跟着[从零到第一次 TTS 回调](docs/FIRST-TTS-CALLBACK.md)操作。
+
 需要 macOS、Python 3.12、FFmpeg，以及单独安装的模型权重和引擎。Python 发行包名为 `local-model-gateway`，CLI 为 `lmg`。API 环境与推理环境可分开；安装 API 依赖不会下载模型。首期使用源码 / editable 安装，尚未发布 wheel 或 Homebrew 包。
 
 ```sh

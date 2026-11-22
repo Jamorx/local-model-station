@@ -51,6 +51,8 @@ For example, six shots pass and two have actions that diverge from the storyboar
 
 ## Quick start
 
+Follow the [first TTS callback tutorial (Chinese)](docs/FIRST-TTS-CALLBACK.md) to generate a WAV and resume the original DSH Web session.
+
 You need macOS on Apple Silicon, Python 3.12+, and FFmpeg for media workflows.
 
 ```sh
